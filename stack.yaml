@@ -1,0 +1,11 @@
+resolver: lts-9.4
+system-ghc: false
+
+packages:
+  - '.'
+
+extra-deps:
+  - hsc2hs-0.68.2
+
+flags: {}
+extra-package-dbs: []
