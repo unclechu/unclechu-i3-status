@@ -67,7 +67,6 @@ import ParentProc (dieWithParent)
 data State = State { numLock     :: Bool
                    , capsLock    :: Bool
                    , alternative :: Bool
-                   , focusLock   :: Bool
                    }
                      deriving (Show, Eq)
 
@@ -75,7 +74,6 @@ instance Default State where
   def = State { numLock     = False
               , capsLock    = False
               , alternative = False
-              , focusLock   = False
               }
 
 objPath :: ObjectPath
@@ -94,28 +92,20 @@ interfaceName = "com.github.unclechu.xmonadrc"
 
 view :: State -> String
 view s = intercalate " " $
-  map (\f -> f s) [numLockView, capsLockView, alternativeView, focusLockView]
+  map (\f -> f s) [numLockView, capsLockView, alternativeView]
 
   where numLockView (numLock -> isOn) =
-          withAction "xdotool key Num_Lock" $
-            colored (bool "#999" "#eee") (const "num") isOn
+          colored (bool "#999" "#eee") (const "num") isOn
 
         capsLockView (capsLock -> isOn) =
-          withAction "xdotool key Caps_Lock" $
-            colored (bool "#999" "orange") (bool "caps" "CAPS") isOn
+          colored (bool "#999" "orange") (bool "caps" "CAPS") isOn
 
-        -- TODO toggle it by mouse click (notify 'xlib-keys-hack')
         alternativeView (alternative -> isOn) =
           colored (bool "#999" "yellow") (bool "hax" "HAX") isOn
 
-        focusLockView (focusLock -> isOn) =
-          withAction "xdotool key super+y" $
-            colored (bool "#999" "aqua") (bool "[ ]" "[x]") isOn
-
-        withAction action x = "<action=" ++ action ++ ">" ++ x ++ "</action>"
-
-        colored fColor fTitle isOn =
-          "<fc=" ++ fColor isOn ++ ">" ++ fTitle isOn ++ "</fc>"
+        colored _ fTitle isOn = fTitle isOn
+        -- colored fColor fTitle isOn =
+        --   "<fc=" ++ fColor isOn ++ ">" ++ fTitle isOn ++ "</fc>"
 
 
 main :: IO ()
@@ -165,7 +155,6 @@ main = do
      in mapM listen [ ("numlock",     \s v -> s { numLock     = v })
                     , ("capslock",    \s v -> s { capsLock    = v })
                     , ("alternative", \s v -> s { alternative = v })
-                    , ("focuslock",   \s v -> s { focusLock   = v })
                     ]
 
   let terminate = do mapM_ (removeMatch client) sigHandlers
