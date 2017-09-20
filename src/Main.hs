@@ -1,6 +1,7 @@
 -- Author: Viacheslav Lotsmanov
 -- License: GPLv3 https://raw.githubusercontent.com/unclechu/unclechu-i3-status/master/LICENSE
 
+{-# LANGUAGE UnicodeSyntax #-}
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -8,9 +9,21 @@
 
 module Main (main) where
 
+import "base-unicode-symbols" Prelude.Unicode
+
 import "data-default" Data.Default (Default, def)
 import "base" Data.List (intercalate)
 import "base" Data.Bool (bool)
+
+-- import "ansi-wl-pprint" Text.PrettyPrint.ANSI.Leijen ( Doc
+--                                                      , hPutDoc
+--                                                      , text
+--                                                      , plain
+--                                                      , bold
+--                                                      , yellow
+--                                                      , dullyellow
+--                                                      , dullmagenta
+--                                                      )
 
 import "base" Control.Monad (when)
 import "base" Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
@@ -64,9 +77,9 @@ import "X11" Graphics.X11.Xlib ( Display
 import ParentProc (dieWithParent)
 
 
-data State = State { numLock     :: Bool
-                   , capsLock    :: Bool
-                   , alternative :: Bool
+data State = State { numLock     ∷ Bool
+                   , capsLock    ∷ Bool
+                   , alternative ∷ Bool
                    }
                      deriving (Show, Eq)
 
@@ -76,57 +89,60 @@ instance Default State where
               , alternative = False
               }
 
-objPath :: ObjectPath
+objPath ∷ ObjectPath
 objPath = "/"
 
-flushObjPathPfx :: String
+flushObjPathPfx ∷ String
 flushObjPathPfx = "/com/github/unclechu/xmonadrc/"
 
 -- To add current Display suffix
-busNamePfx :: String
+busNamePfx ∷ String
 busNamePfx = "com.github.unclechu.xmonadrc."
 
-interfaceName :: InterfaceName
+interfaceName ∷ InterfaceName
 interfaceName = "com.github.unclechu.xmonadrc"
 
 
-view :: State -> String
-view s = intercalate " " $
-  map (\f -> f s) [numLockView, capsLockView, alternativeView]
+view ∷ State → String
+view s
+  = intercalate " "
+  $ map (\f → f s) [numLockView, capsLockView, alternativeView]
 
-  where numLockView (numLock -> isOn) =
+  where numLockView (numLock → isOn) =
           colored (bool "#999" "#eee") (const "num") isOn
 
-        capsLockView (capsLock -> isOn) =
+        capsLockView (capsLock → isOn) =
           colored (bool "#999" "orange") (bool "caps" "CAPS") isOn
 
-        alternativeView (alternative -> isOn) =
-          colored (bool "#999" "yellow") (bool "hax" "HAX") isOn
+        alternativeView ∷ State → String
+        alternativeView (alternative → isOn) =
+          colored (bool "gray" "yellow") (bool "hax" "HAX") isOn
 
+        colored ∷ (Bool → String) → (Bool → String) → Bool → String
         colored _ fTitle isOn = fTitle isOn
         -- colored fColor fTitle isOn =
-        --   "<fc=" ++ fColor isOn ++ ">" ++ fTitle isOn ++ "</fc>"
+        --   "<span foreground='" ⧺ fColor isOn ⧺ "'>" ⧺ fTitle isOn ⧺ "</span>"
 
 
-main :: IO ()
+main ∷ IO ()
 main = do
   -- Connecting to DBus
-  client  <- connectSession
+  client  ← connectSession
 
   -- Getting bus name for our service that depends on Display name
-  dpyView <- do dpy <- openDisplay ""
-                let x = getDisplayName dpy
-                x <$ (x `seq` closeDisplay dpy)
+  dpyView ← do dpy   ← openDisplay ""
+               let x = getDisplayName dpy
+               x <$ (x `seq` closeDisplay dpy)
 
-  let busName = busName_ $ busNamePfx ++ dpyView
-      flushObjPath = objectPath_ $ flushObjPathPfx ++ dpyView
+  let busName = busName_ $ busNamePfx ⧺ dpyView
+      flushObjPath = objectPath_ $ flushObjPathPfx ⧺ dpyView
 
   -- Grab the bus name for our service
-  requestName client busName [] >>= \reply ->
-    when (reply /= NamePrimaryOwner) $
-      die $ "Requesting name '" ++ show busName ++ "' error: " ++ show reply
+  requestName client busName [] >>= \reply →
+    when (reply ≢ NamePrimaryOwner) $
+      die $ "Requesting name '" ⧺ show busName ⧺ "' error: " ⧺ show reply
 
-  mVar <- newEmptyMVar
+  mVar ← newEmptyMVar
 
   let put = putMVar mVar
 
@@ -138,27 +154,27 @@ main = do
 
   -- If `xlib-keys-hack` started before ask it to reflush indicators
   emit client (signal flushObjPath interfaceName "request_flush_all")
-                { signalSender = Just busName
+                { signalSender      = Just busName
                 , signalDestination = Nothing
-                , signalBody = []
+                , signalBody        = []
                 }
 
-  sigHandlers <-
+  sigHandlers ←
     let listen (member, lens) = addMatch client (matchRule member) $ handle lens
         matchRule member = basicMatchRule { matchMember = Just member }
 
-        handle lens (signalBody -> map fromVariant -> [Just (v :: Bool)]) =
+        handle lens (signalBody → map fromVariant → [Just (v ∷ Bool)]) =
           put $ Just (lens, v)
 
         handle _ _ = return () -- Incorrect arguments, just ignoring it
 
-     in mapM listen [ ("numlock",     \s v -> s { numLock     = v })
-                    , ("capslock",    \s v -> s { capsLock    = v })
-                    , ("alternative", \s v -> s { alternative = v })
+     in mapM listen [ ("numlock",     \s v → s { numLock     = v })
+                    , ("capslock",    \s v → s { capsLock    = v })
+                    , ("alternative", \s v → s { alternative = v })
                     ]
 
   let terminate = do mapM_ (removeMatch client) sigHandlers
-                     _ <- releaseName client busName
+                     _ ← releaseName client busName
                      disconnect client
                      put Nothing
 
@@ -168,7 +184,7 @@ main = do
 
   dieWithParent
 
-  let handle :: State -> Maybe ((State -> Bool -> State), Bool) -> IO State
+  let handle ∷ State → Maybe ((State → Bool → State), Bool) → IO State
       handle prevState Nothing = prevState <$ exitSuccess
 
       handle prevState (Just (lens, v)) =
@@ -182,10 +198,10 @@ main = do
    in () <$ echo (view def) >> next def
 
 
-echo :: String -> IO ()
+echo ∷ String → IO ()
 echo s = hPutStrLn stdout s >> hFlush stdout
 
-getDisplayName :: Display -> String
+getDisplayName ∷ Display → String
 getDisplayName dpy = map f $ displayString dpy
   where f ':' = '_'
         f '.' = '_'

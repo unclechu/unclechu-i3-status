@@ -1,4 +1,4 @@
--- This file has been generated from package.yaml by hpack version 0.15.0.
+-- This file has been generated from package.yaml by hpack version 0.17.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -19,13 +19,14 @@ library
       src
   ghc-options: -Wall -O2
   build-depends:
-      base
-    , process
-    , directory
-    , dbus
-    , unix
+      X11
+    , base
+    , base-unicode-symbols
     , data-default
-    , X11
+    , dbus
+    , directory
+    , process
+    , unix
   build-tools:
       hsc2hs
   exposed-modules:
@@ -39,13 +40,14 @@ executable unclechu-i3-status
       src
   ghc-options: -Wall -O2
   build-depends:
-      base
-    , process
-    , directory
-    , dbus
-    , unix
+      X11
+    , base
+    , base-unicode-symbols
     , data-default
-    , X11
+    , dbus
+    , directory
+    , process
+    , unix
     , unclechu-i3-status
   other-modules:
       ParentProc

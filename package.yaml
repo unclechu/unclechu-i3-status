@@ -8,13 +8,15 @@ copyright:    2017 Viacheslav Lotsmanov
 category:     System
 
 dependencies:
-  - base
-  - process
-  - directory
-  - dbus
-  - unix
-  - data-default
   - X11
+  # - ansi-wl-pprint
+  - base
+  - base-unicode-symbols
+  - data-default
+  - dbus
+  - directory
+  - process
+  - unix
 
 ghc-options:
   - -Wall
