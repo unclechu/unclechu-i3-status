@@ -22,7 +22,7 @@ import "aeson"        Data.Aeson ( ToJSON (toJSON)
                                  , genericToJSON
                                  )
 
-import "aeson"        Data.Aeson.Types (Options (fieldLabelModifier))
+import "aeson"        Data.Aeson.Types (Options (fieldLabelModifier), camelTo2)
 import "bytestring"   Data.ByteString.Lazy.Char8 (ByteString, hPutStrLn, append)
 
 import "base" Control.Monad (when)
@@ -97,10 +97,10 @@ instance Default State where
 
 data ProtocolInitialization
   = ProtocolInitialization
-  { version      ∷ Int
-  , stop_signal  ∷ Maybe Int
-  , cont_signal  ∷ Maybe Int
-  , click_events ∷ Bool
+  { version     ∷ Int
+  , stopSignal  ∷ Maybe Int
+  , contSignal  ∷ Maybe Int
+  , clickEvents ∷ Bool
   }
 
   deriving (Show, Eq, Generic)
@@ -108,30 +108,31 @@ data ProtocolInitialization
 instance Default ProtocolInitialization where
   def
     = ProtocolInitialization
-    { version      = 1
-    , stop_signal  = Nothing
-    , cont_signal  = Nothing
-    , click_events = False
+    { version     = 1
+    , stopSignal  = Nothing
+    , contSignal  = Nothing
+    , clickEvents = False
     }
 
-instance ToJSON ProtocolInitialization
+instance ToJSON ProtocolInitialization where
+  toJSON = genericToJSON $ withFieldNamer id
 
 
 data Unit
   = Unit
-  { full_text             ∷ String
-  , short_text            ∷ Maybe String
-  , color                 ∷ Maybe String
-  , background            ∷ Maybe String
-  , border                ∷ Maybe String
-  , min_width             ∷ Maybe Int
-  , align                 ∷ Maybe String
-  , name                  ∷ Maybe String
-  , _instance             ∷ Maybe String
-  , urgent                ∷ Maybe Bool
-  , separator             ∷ Maybe Bool
-  , separator_block_width ∷ Maybe Int
-  , markup                ∷ Maybe String
+  { fullText            ∷ String
+  , shortText           ∷ Maybe String
+  , color               ∷ Maybe String
+  , background          ∷ Maybe String
+  , border              ∷ Maybe String
+  , minWidth            ∷ Maybe Int
+  , align               ∷ Maybe String
+  , name                ∷ Maybe String
+  , _instance           ∷ Maybe String
+  , urgent              ∷ Maybe Bool
+  , separator           ∷ Maybe Bool
+  , separatorBlockWidth ∷ Maybe Int
+  , markup              ∷ Maybe String
   }
 
   deriving (Show, Eq, Generic)
@@ -139,23 +140,23 @@ data Unit
 instance Default Unit where
   def
     = Unit
-    { full_text             = undefined
-    , short_text            = Nothing
-    , color                 = Just "#999999"
-    , background            = Nothing
-    , border                = Nothing
-    , min_width             = Nothing
-    , align                 = Nothing
-    , name                  = Nothing
-    , _instance             = Nothing
-    , urgent                = Nothing
-    , separator             = Just False
-    , separator_block_width = Nothing
-    , markup                = Just "none"
+    { fullText            = undefined
+    , shortText           = Nothing
+    , color               = Just "#999999"
+    , background          = Nothing
+    , border              = Nothing
+    , minWidth            = Nothing
+    , align               = Nothing
+    , name                = Nothing
+    , _instance           = Nothing
+    , urgent              = Nothing
+    , separator           = Just False
+    , separatorBlockWidth = Nothing
+    , markup              = Just "none"
     }
 
 instance ToJSON Unit where
-  toJSON = genericToJSON defaultOptions { fieldLabelModifier = f }
+  toJSON = genericToJSON $ withFieldNamer f
     where f ('_':xs) = xs; f x = x
 
 
@@ -179,18 +180,18 @@ view s = encode $ map (\f → f s) [numLockView, capsLockView, alternativeView]
   where numLockView, capsLockView, alternativeView ∷ State → Unit
 
         numLockView (numLock → isOn) =
-          def { full_text = "num"
-              , color     = Just $ bool "#999999" "#eeeeee" isOn
+          def { fullText = "num"
+              , color    = Just $ bool "#999999" "#eeeeee" isOn
               }
 
         capsLockView (capsLock → isOn) =
-          def { full_text = bool "caps" "CAPS" isOn
-              , color     = Just $ bool "#999999" "#ff9900" isOn
+          def { fullText = bool "caps" "CAPS" isOn
+              , color    = Just $ bool "#999999" "#ff9900" isOn
               }
 
         alternativeView (alternative → isOn) =
-          def { full_text = bool "hax" "HAX" isOn
-              , color     = Just $ bool "#999999" "#ffff00" isOn
+          def { fullText = bool "hax" "HAX" isOn
+              , color    = Just $ bool "#999999" "#ffff00" isOn
               }
 
 
@@ -280,3 +281,6 @@ getDisplayName dpy = map f $ displayString dpy
   where f ':' = '_'
         f '.' = '_'
         f  x  =  x
+
+withFieldNamer ∷ (String → String) → Options
+withFieldNamer f = defaultOptions { fieldLabelModifier = f ∘ camelTo2 '_' }
