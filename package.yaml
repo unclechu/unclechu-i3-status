@@ -8,15 +8,16 @@ copyright:    2017 Viacheslav Lotsmanov
 category:     System
 
 dependencies:
-  - X11
-  # - ansi-wl-pprint
+  - aeson
   - base
   - base-unicode-symbols
+  - bytestring
   - data-default
   - dbus
   - directory
   - process
   - unix
+  - X11
 
 ghc-options:
   - -Wall
