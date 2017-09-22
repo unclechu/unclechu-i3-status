@@ -6,23 +6,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE DeriveGeneric #-}
 
 module Main (main) where
 
 import "base-unicode-symbols" Prelude.Unicode
-import "base" GHC.Generics (Generic)
 
-import "data-default" Data.Default (Default, def)
+import "data-default" Data.Default (def)
 import "base"         Data.Bool (bool)
-
-import "aeson"        Data.Aeson ( ToJSON (toJSON)
-                                 , encode
-                                 , defaultOptions
-                                 , genericToJSON
-                                 )
-
-import "aeson"        Data.Aeson.Types (Options (fieldLabelModifier), camelTo2)
+import "aeson"        Data.Aeson (encode)
 import "bytestring"   Data.ByteString.Lazy.Char8 (ByteString, hPutStrLn, append)
 
 import "base" Control.Monad (when)
@@ -75,89 +66,7 @@ import "X11" Graphics.X11.Xlib ( Display
 -- local imports
 
 import ParentProc (dieWithParent)
-
-
-data State
-  = State
-  { numLock     ∷ Bool
-  , capsLock    ∷ Bool
-  , alternative ∷ Bool
-  }
-
-  deriving (Show, Eq)
-
-instance Default State where
-  def
-    = State
-    { numLock     = False
-    , capsLock    = False
-    , alternative = False
-    }
-
-
-data ProtocolInitialization
-  = ProtocolInitialization
-  { version     ∷ Int
-  , stopSignal  ∷ Maybe Int
-  , contSignal  ∷ Maybe Int
-  , clickEvents ∷ Bool
-  }
-
-  deriving (Show, Eq, Generic)
-
-instance Default ProtocolInitialization where
-  def
-    = ProtocolInitialization
-    { version     = 1
-    , stopSignal  = Nothing
-    , contSignal  = Nothing
-    , clickEvents = False
-    }
-
-instance ToJSON ProtocolInitialization where
-  toJSON = genericToJSON $ withFieldNamer id
-
-
-data Unit
-  = Unit
-  { fullText            ∷ String
-  , shortText           ∷ Maybe String
-  , color               ∷ Maybe String
-  , background          ∷ Maybe String
-  , border              ∷ Maybe String
-  , minWidth            ∷ Maybe Int
-  , align               ∷ Maybe String
-  , name                ∷ Maybe String
-  , _instance           ∷ Maybe String
-  , urgent              ∷ Maybe Bool
-  , separator           ∷ Maybe Bool
-  , separatorBlockWidth ∷ Maybe Int
-  , markup              ∷ Maybe String
-  }
-
-  deriving (Show, Eq, Generic)
-
-instance Default Unit where
-  def
-    = Unit
-    { fullText            = undefined
-    , shortText           = Nothing
-    , color               = Just "#999999"
-    , background          = Nothing
-    , border              = Nothing
-    , minWidth            = Nothing
-    , align               = Nothing
-    , name                = Nothing
-    , _instance           = Nothing
-    , urgent              = Nothing
-    , separator           = Just False
-    , separatorBlockWidth = Nothing
-    , markup              = Just "none"
-    }
-
-instance ToJSON Unit where
-  toJSON = genericToJSON $ withFieldNamer f
-    where f ('_':xs) = xs; f x = x
+import Types (State (..), ProtocolInitialization (..), Unit (..))
 
 
 objPath ∷ ObjectPath
@@ -230,6 +139,7 @@ main = do
                 , signalBody        = []
                 }
 
+  -- Bind IPC events handlers
   sigHandlers ←
     let listen (member, lens) = addMatch client (matchRule member) $ handle lens
         matchRule member = basicMatchRule { matchMember = Just member }
@@ -239,11 +149,13 @@ main = do
 
         handle _ _ = return () -- Incorrect arguments, just ignoring it
 
+                    -- Pairs of IPC method and lens for the state
      in mapM listen [ ("numlock",     \s v → s { numLock     = v })
                     , ("capslock",    \s v → s { capsLock    = v })
                     , ("alternative", \s v → s { alternative = v })
                     ]
 
+  -- Handle POSIX signals to terminate application
   let terminate = do mapM_ (removeMatch client) sigHandlers
                      _ ← releaseName client busName
                      disconnect client
@@ -253,14 +165,16 @@ main = do
 
    in mapM_ catch [sigHUP, sigINT, sigTERM, sigPIPE]
 
-  dieWithParent
+  dieWithParent -- make this app die if parent die
 
   echo $ encode (def ∷ ProtocolInitialization)
-  echo "["
-  echo "[]"
+  echo "[" -- open lazy list
 
+  -- Main thread is reactive loop that gets lens and value from another thread
+  -- to update the state and render it (if it's Just) or terminate the
+  -- application (it it's Nothing).
   let handle ∷ State → Maybe ((State → Bool → State), Bool) → IO State
-      handle prevState Nothing = prevState <$ exitSuccess
+      handle prevState Nothing = prevState <$ echo "]" >> exitSuccess
 
       handle prevState (Just (lens, v)) =
         let newState = lens prevState v
@@ -270,7 +184,7 @@ main = do
 
       next s = takeMVar mVar >>= handle s >>= next
 
-   in () <$ echo ("," `append` view def) >> next def
+   in () <$ echo (view def) >> next def
 
 
 echo ∷ ByteString → IO ()
@@ -281,6 +195,3 @@ getDisplayName dpy = map f $ displayString dpy
   where f ':' = '_'
         f '.' = '_'
         f  x  =  x
-
-withFieldNamer ∷ (String → String) → Options
-withFieldNamer f = defaultOptions { fieldLabelModifier = f ∘ camelTo2 '_' }

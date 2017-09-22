@@ -34,6 +34,7 @@ library
   exposed-modules:
       Main
       ParentProc
+      Types
   default-language: Haskell2010
 
 executable unclechu-i3-status
@@ -55,4 +56,5 @@ executable unclechu-i3-status
     , unclechu-i3-status
   other-modules:
       ParentProc
+      Types
   default-language: Haskell2010
