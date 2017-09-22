@@ -89,7 +89,7 @@ data Unit
 instance Default Unit where
   def
     = Unit
-    { fullText            = undefined
+    { fullText            = ""
     , shortText           = Nothing
     , color               = Just "#999999"
     , background          = Nothing

@@ -13,7 +13,7 @@ import "base-unicode-symbols" Prelude.Unicode
 
 import "data-default" Data.Default (def)
 import "base"         Data.Bool (bool)
-import "base"         Data.Word (Word8)
+import "base"         Data.Maybe (fromMaybe)
 import "aeson"        Data.Aeson (encode)
 import "bytestring"   Data.ByteString.Lazy.Char8 (ByteString, hPutStrLn, append)
 
@@ -95,20 +95,24 @@ view s = encode [ numLockView
                 ]
 
   where numLockView, capsLockView, alternativeView, kbdLayoutView ∷ Unit
+        _separate ∷ Unit
 
         numLockView = let isOn = numLock s
           in def { fullText = "num"
                  , color    = Just $ bool "#999999" "#eeeeee" isOn
+                 , name     = Just "numlock"
                  }
 
         capsLockView = let isOn = capsLock s
           in def { fullText = bool "caps" "CAPS" isOn
                  , color    = Just $ bool "#999999" "#ff9900" isOn
+                 , name     = Just "capslock"
                  }
 
         alternativeView = let isOn = alternative s
-          in def { fullText  = bool "hax" "HAX" isOn
-                 , color     = Just $ bool "#999999" "#ffff00" isOn
+          in def { fullText = bool "hax" "HAX" isOn
+                 , color    = Just $ bool "#999999" "#ffff00" isOn
+                 , name     = Just "alternative"
                  }
 
         kbdLayoutView
@@ -116,6 +120,7 @@ view s = encode [ numLockView
           | kbdLayout s ∈ [0, 1] = let isRU = kbdLayout s ≢ 0
             in def { fullText = bool "US" "RU" isRU
                    , color    = Just $ bool "#ff0000" "#00ff00" isRU
+                   , name     = Just "kbdlayout"
                    }
 
           | otherwise = def { fullText = "%ERROR%", color = Just "#ff0000" }
@@ -163,14 +168,16 @@ main = do
 
   -- Bind IPC events handlers
   sigHandlers ←
-    let listen (member, lens) = addMatch client (matchRule member) $ handle lens
-        matchRule member = basicMatchRule { matchMember = Just member }
-        flag (fromVariant -> Just (x ∷ Bool))  = x; flag _ = False
-        num  (fromVariant -> Just (x ∷ Word8)) = x; num _  = 0
+    let listen (member, stateModifier) =
+          addMatch client (matchRule member) $ handle stateModifier
 
-        handle lens (signalBody → [x]) = case variantType x of
-          TypeBoolean -> put $ Just (lens, x)
-          TypeWord8   -> put $ Just (lens, x)
+        matchRule member = basicMatchRule { matchMember = Just member }
+        flag = fromMaybe False . fromVariant
+        num  = fromMaybe 0     . fromVariant
+
+        handle stateModifier (signalBody → [x]) = case variantType x of
+          TypeBoolean -> put $ Just $ stateModifier x
+          TypeWord8   -> put $ Just $ stateModifier x
           _           -> return () -- Incorrect arguments, just ignoring it
 
         -- Incorrect arguments, just ignoring it
@@ -178,11 +185,11 @@ main = do
 
      in mapM listen
 
-             -- Pairs of IPC method and lens for the state
-             [ ("numlock",     \s v → s { numLock     = flag v })
-             , ("capslock",    \s v → s { capsLock    = flag v })
-             , ("alternative", \s v → s { alternative = flag v })
-             , ("xkblayout",   \s v → s { kbdLayout   = num  v })
+             -- Pairs of IPC method and state modifir
+             [ ("numlock",     \x s → s { numLock     = flag x })
+             , ("capslock",    \x s → s { capsLock    = flag x })
+             , ("alternative", \x s → s { alternative = flag x })
+             , ("xkblayout",   \x s → s { kbdLayout   = num  x })
              ]
 
   -- Handle POSIX signals to terminate application
@@ -200,14 +207,14 @@ main = do
   echo $ encode (def ∷ ProtocolInitialization)
   echo "[" -- open lazy list
 
-  -- Main thread is reactive loop that gets lens and value from another thread
-  -- to update the state and render it (if it's Just) or terminate the
+  -- Main thread is reactive loop that gets state modifier from another thread
+  -- to update the state and re-render it (if it's Just) or terminate the
   -- application (it it's Nothing).
-  let handle ∷ IsVariant v ⇒ State → Maybe ((State → v → State), v) → IO State
+  let handle ∷ State → Maybe (State → State) → IO State
       handle prevState Nothing = prevState <$ echo "]" >> exitSuccess
 
-      handle prevState (Just (lens, v)) =
-        let newState = lens prevState v
+      handle prevState (Just stateModifier) =
+        let newState = stateModifier prevState
          in if newState == prevState
                then return prevState
                else newState <$ echo ("," `append` view newState)
