@@ -86,7 +86,8 @@ interfaceName = "com.github.unclechu.xmonadrc"
 view ∷ State → ByteString
 view s = encode [ numLockView
                 , capsLockView
-                , separateAfter alternativeView
+                , alternativeView
+                , _separate
                 , kbdLayoutView
                 ]
 
@@ -116,9 +117,10 @@ view s = encode [ numLockView
 
           | otherwise = def { fullText = "%ERROR%", color = Just "#ff0000" }
 
-        separateAfter unit = unit { separator           = Just True
-                                  , separatorBlockWidth = Just 20
-                                  }
+        _separate = def { fullText = "/", color = Just "#666666" }
+        -- separateAfter x = x { separator           = Just True
+        --                     , separatorBlockWidth = Just 20
+        --                     }
 
 
 main ∷ IO ()
