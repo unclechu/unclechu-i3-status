@@ -34,7 +34,7 @@ data State
   , lastTime    ∷ Maybe (UTCTime, TimeZone)
                       -- ^ The reason why don't just store ZonedTime here
                       --   is that it doesn't have Eq instance.
-                      --   See. https://github.com/haskell/time/issues/50
+                      --   See https://github.com/haskell/time/issues/50
   }
 
   deriving (Show, Eq)

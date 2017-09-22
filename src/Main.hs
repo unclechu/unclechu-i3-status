@@ -14,6 +14,7 @@ import "base-unicode-symbols" Prelude.Unicode
 import "data-default" Data.Default (def)
 import "base"         Data.Bool (bool)
 import "base"         Data.Tuple (swap)
+import "base"         Data.Fixed (Pico)
 import "base"         Data.Maybe (fromMaybe)
 import "aeson"        Data.Aeson (encode)
 import "bytestring"   Data.ByteString.Lazy.Char8 (ByteString, hPutStrLn, append)
@@ -148,12 +149,23 @@ view s = encode [ numLockView
           = fromMaybe def { fullText = "…" }
           $ set ∘ render <$> lastTime s
           where render = renderDate ∘ uncurry utcToZonedTime ∘ swap
-                set x  = def { fullText = x }
+                set x  = def { fullText = x, name = Just "datentime" }
 
         _separate = def { fullText = "/", color = Just "#666666" }
         -- separateAfter x = x { separator           = Just True
         --                     , separatorBlockWidth = Just 20
         --                     }
+
+
+fetchDateAndTime ∷ IO (Pico, State → State)
+fetchDateAndTime = do
+  zonedTime    ← getZonedTime
+  let utc      = zonedTimeToUTC zonedTime
+      timeZone = zonedTimeZone  zonedTime
+      seconds  = todSec $ localTimeOfDay $ zonedTimeToLocalTime $ zonedTime
+      secsLeft = 60 - seconds -- left to next minute
+
+  return (secsLeft, \s → s { lastTime = Just (utc, timeZone) })
 
 
 main ∷ IO ()
@@ -217,16 +229,11 @@ main = do
              , ("xkblayout",   \x s → s { kbdLayout   = num  x })
              ]
 
-  -- Fetcing date thread
-  _ <- forkIO $ forever $ do
-    zonedTime    ← getZonedTime
-    let utc      = zonedTimeToUTC zonedTime
-        timeZone = zonedTimeZone  zonedTime
-        seconds  = todSec $ localTimeOfDay $ zonedTimeToLocalTime $ zonedTime
-        secsLeft = 60 - seconds -- left to next minute
-
-    put $ Just $ \s → s { lastTime = Just (utc, timeZone) }
-    threadDelay $ ceiling $ secsLeft * 1000 * 1000
+  -- Fetcing date and time thread
+  _ ← forkIO $ forever $ do
+    (secondsLeftToNextMinute, stateModifier) ← fetchDateAndTime
+    put $ Just stateModifier
+    threadDelay $ ceiling $ secondsLeftToNextMinute * 1000 * 1000
 
   -- Handle POSIX signals to terminate application
   let terminate = do mapM_ (removeMatch client) sigHandlers
