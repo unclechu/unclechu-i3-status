@@ -13,6 +13,7 @@ import "base-unicode-symbols" Prelude.Unicode
 
 import "data-default" Data.Default (def)
 import "base"         Data.Bool (bool)
+import "base"         Data.Word (Word8)
 import "aeson"        Data.Aeson (encode)
 import "bytestring"   Data.ByteString.Lazy.Char8 (ByteString, hPutStrLn, append)
 
@@ -30,12 +31,14 @@ import "unix" System.Posix.Signals ( installHandler
                                    , sigPIPE
                                    )
 
-import "dbus" DBus ( objectPath_
-                   , busName_
-                   , ObjectPath
+import "dbus" DBus ( ObjectPath
                    , InterfaceName
                    , Signal (signalBody, signalSender, signalDestination)
                    , IsVariant (fromVariant)
+                   , Type (TypeBoolean, TypeWord8)
+                   , variantType
+                   , objectPath_
+                   , busName_
                    , signal
                    )
 
@@ -159,21 +162,28 @@ main = do
                 }
 
   -- Bind IPC events handlers
-  -- TODO Handle keyboard layout
   sigHandlers ←
     let listen (member, lens) = addMatch client (matchRule member) $ handle lens
         matchRule member = basicMatchRule { matchMember = Just member }
+        flag (fromVariant -> Just (x ∷ Bool))  = x; flag _ = False
+        num  (fromVariant -> Just (x ∷ Word8)) = x; num _  = 0
 
-        handle lens (signalBody → map fromVariant → [Just (v ∷ Bool)]) =
-          put $ Just (lens, v)
+        handle lens (signalBody → [x]) = case variantType x of
+          TypeBoolean -> put $ Just (lens, x)
+          TypeWord8   -> put $ Just (lens, x)
+          _           -> return () -- Incorrect arguments, just ignoring it
 
-        handle _ _ = return () -- Incorrect arguments, just ignoring it
+        -- Incorrect arguments, just ignoring it
+        handle _ _ = return ()
 
-                    -- Pairs of IPC method and lens for the state
-     in mapM listen [ ("numlock",     \s v → s { numLock     = v })
-                    , ("capslock",    \s v → s { capsLock    = v })
-                    , ("alternative", \s v → s { alternative = v })
-                    ]
+     in mapM listen
+
+             -- Pairs of IPC method and lens for the state
+             [ ("numlock",     \s v → s { numLock     = flag v })
+             , ("capslock",    \s v → s { capsLock    = flag v })
+             , ("alternative", \s v → s { alternative = flag v })
+             , ("xkblayout",   \s v → s { kbdLayout   = num  v })
+             ]
 
   -- Handle POSIX signals to terminate application
   let terminate = do mapM_ (removeMatch client) sigHandlers
@@ -193,7 +203,7 @@ main = do
   -- Main thread is reactive loop that gets lens and value from another thread
   -- to update the state and render it (if it's Just) or terminate the
   -- application (it it's Nothing).
-  let handle ∷ State → Maybe ((State → Bool → State), Bool) → IO State
+  let handle ∷ IsVariant v ⇒ State → Maybe ((State → v → State), v) → IO State
       handle prevState Nothing = prevState <$ echo "]" >> exitSuccess
 
       handle prevState (Just (lens, v)) =
