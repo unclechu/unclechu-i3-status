@@ -14,6 +14,7 @@ module Types
 import "base-unicode-symbols" Prelude.Unicode
 import "base" GHC.Generics (Generic)
 
+import "base"         Data.Word (Word, Word8)
 import "data-default" Data.Default (Default (def))
 import "aeson"        Data.Aeson.Types (Options (fieldLabelModifier), camelTo2)
 
@@ -28,6 +29,7 @@ data State
   { numLock     ∷ Bool
   , capsLock    ∷ Bool
   , alternative ∷ Bool
+  , kbdLayout   ∷ Word8
   }
 
   deriving (Show, Eq)
@@ -38,12 +40,13 @@ instance Default State where
     { numLock     = False
     , capsLock    = False
     , alternative = False
+    , kbdLayout   = 0
     }
 
 
 data ProtocolInitialization
   = ProtocolInitialization
-  { version     ∷ Int
+  { version     ∷ Word
   , stopSignal  ∷ Maybe Int
   , contSignal  ∷ Maybe Int
   , clickEvents ∷ Bool
@@ -71,13 +74,13 @@ data Unit
   , color               ∷ Maybe String
   , background          ∷ Maybe String
   , border              ∷ Maybe String
-  , minWidth            ∷ Maybe Int
+  , minWidth            ∷ Maybe Word
   , align               ∷ Maybe String
   , name                ∷ Maybe String
   , _instance           ∷ Maybe String
   , urgent              ∷ Maybe Bool
   , separator           ∷ Maybe Bool
-  , separatorBlockWidth ∷ Maybe Int
+  , separatorBlockWidth ∷ Maybe Word
   , markup              ∷ Maybe String
   }
 

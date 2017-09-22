@@ -84,24 +84,41 @@ interfaceName = "com.github.unclechu.xmonadrc"
 
 
 view ∷ State → ByteString
-view s = encode $ map (\f → f s) [numLockView, capsLockView, alternativeView]
+view s = encode [ numLockView
+                , capsLockView
+                , separateAfter alternativeView
+                , kbdLayoutView
+                ]
 
-  where numLockView, capsLockView, alternativeView ∷ State → Unit
+  where numLockView, capsLockView, alternativeView, kbdLayoutView ∷ Unit
 
-        numLockView (numLock → isOn) =
-          def { fullText = "num"
-              , color    = Just $ bool "#999999" "#eeeeee" isOn
-              }
+        numLockView = let isOn = numLock s
+          in def { fullText = "num"
+                 , color    = Just $ bool "#999999" "#eeeeee" isOn
+                 }
 
-        capsLockView (capsLock → isOn) =
-          def { fullText = bool "caps" "CAPS" isOn
-              , color    = Just $ bool "#999999" "#ff9900" isOn
-              }
+        capsLockView = let isOn = capsLock s
+          in def { fullText = bool "caps" "CAPS" isOn
+                 , color    = Just $ bool "#999999" "#ff9900" isOn
+                 }
 
-        alternativeView (alternative → isOn) =
-          def { fullText = bool "hax" "HAX" isOn
-              , color    = Just $ bool "#999999" "#ffff00" isOn
-              }
+        alternativeView = let isOn = alternative s
+          in def { fullText  = bool "hax" "HAX" isOn
+                 , color     = Just $ bool "#999999" "#ffff00" isOn
+                 }
+
+        kbdLayoutView
+
+          | kbdLayout s ∈ [0, 1] = let isRU = kbdLayout s ≢ 0
+            in def { fullText = bool "US" "RU" isRU
+                   , color    = Just $ bool "#ff0000" "#00ff00" isRU
+                   }
+
+          | otherwise = def { fullText = "%ERROR%", color = Just "#ff0000" }
+
+        separateAfter unit = unit { separator           = Just True
+                                  , separatorBlockWidth = Just 20
+                                  }
 
 
 main ∷ IO ()
@@ -140,6 +157,7 @@ main = do
                 }
 
   -- Bind IPC events handlers
+  -- TODO Handle keyboard layout
   sigHandlers ←
     let listen (member, lens) = addMatch client (matchRule member) $ handle lens
         matchRule member = basicMatchRule { matchMember = Just member }
