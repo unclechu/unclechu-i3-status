@@ -17,7 +17,8 @@ import "base" GHC.Generics (Generic)
 import "base"         Data.Word (Word, Word8)
 import "data-default" Data.Default (Default (def))
 import "aeson"        Data.Aeson.Types (Options (fieldLabelModifier), camelTo2)
-
+import "time"         Data.Time.Clock (UTCTime)
+import "time"         Data.Time.LocalTime (TimeZone)
 import "aeson"        Data.Aeson ( ToJSON (toJSON)
                                  , defaultOptions
                                  , genericToJSON
@@ -30,6 +31,10 @@ data State
   , capsLock    ∷ Bool
   , alternative ∷ Bool
   , kbdLayout   ∷ Word8
+  , lastTime    ∷ Maybe (UTCTime, TimeZone)
+                      -- ^ The reason why don't just store ZonedTime here
+                      --   is that it doesn't have Eq instance.
+                      --   See. https://github.com/haskell/time/issues/50
   }
 
   deriving (Show, Eq)
@@ -41,6 +46,7 @@ instance Default State where
     , capsLock    = False
     , alternative = False
     , kbdLayout   = 0
+    , lastTime    = Nothing
     }
 
 

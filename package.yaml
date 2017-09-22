@@ -16,6 +16,7 @@ dependencies:
   - dbus
   - directory
   - process
+  - time
   - unix
   - X11
 

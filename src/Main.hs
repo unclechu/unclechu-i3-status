@@ -13,16 +13,32 @@ import "base-unicode-symbols" Prelude.Unicode
 
 import "data-default" Data.Default (def)
 import "base"         Data.Bool (bool)
+import "base"         Data.Tuple (swap)
 import "base"         Data.Maybe (fromMaybe)
 import "aeson"        Data.Aeson (encode)
 import "bytestring"   Data.ByteString.Lazy.Char8 (ByteString, hPutStrLn, append)
+import "time"         Data.Time.LocalTime ( TimeOfDay (todSec)
+                                          , LocalTime (localTimeOfDay)
+                                          , ZonedTime ( zonedTimeToLocalTime
+                                                      , zonedTimeZone
+                                                      )
 
-import "base" Control.Monad (when)
+                                          , getZonedTime
+                                          , zonedTimeToUTC
+                                          , utcToZonedTime
+                                          )
+
+import "time"         Data.Time.Format ( FormatTime
+                                       , formatTime
+                                       , defaultTimeLocale
+                                       )
+
+import "base" Control.Monad (when, forever)
+import "base" Control.Concurrent (forkIO, threadDelay)
 import "base" Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
 
 import "base" System.IO (hFlush, stdout)
 import "base" System.Exit (die, exitSuccess)
-
 import "unix" System.Posix.Signals ( installHandler
                                    , Handler (Catch)
                                    , sigHUP
@@ -41,7 +57,6 @@ import "dbus" DBus ( ObjectPath
                    , busName_
                    , signal
                    )
-
 import "dbus" DBus.Client ( connectSession
                           , disconnect
                           , requestName
@@ -51,7 +66,6 @@ import "dbus" DBus.Client ( connectSession
                           , removeMatch
                           , matchAny
                           , emit
-
                           , MatchRule ( matchPath
                                       , matchSender
                                       , matchDestination
@@ -85,6 +99,9 @@ busNamePfx = "com.github.unclechu.xmonadrc."
 interfaceName ∷ InterfaceName
 interfaceName = "com.github.unclechu.xmonadrc"
 
+dateFormat ∷ String
+dateFormat = "%A %-d %B %H:%M"
+
 
 view ∷ State → ByteString
 view s = encode [ numLockView
@@ -92,10 +109,12 @@ view s = encode [ numLockView
                 , alternativeView
                 , _separate
                 , kbdLayoutView
+                , _separate
+                , dateAndTimeView
                 ]
 
   where numLockView, capsLockView, alternativeView, kbdLayoutView ∷ Unit
-        _separate ∷ Unit
+        dateAndTimeView, _separate ∷ Unit
 
         numLockView = let isOn = numLock s
           in def { fullText = "num"
@@ -124,6 +143,12 @@ view s = encode [ numLockView
                    }
 
           | otherwise = def { fullText = "%ERROR%", color = Just "#ff0000" }
+
+        dateAndTimeView
+          = fromMaybe def { fullText = "…" }
+          $ set ∘ render <$> lastTime s
+          where render = renderDate ∘ uncurry utcToZonedTime ∘ swap
+                set x  = def { fullText = x }
 
         _separate = def { fullText = "/", color = Just "#666666" }
         -- separateAfter x = x { separator           = Just True
@@ -192,6 +217,17 @@ main = do
              , ("xkblayout",   \x s → s { kbdLayout   = num  x })
              ]
 
+  -- Fetcing date thread
+  _ <- forkIO $ forever $ do
+    zonedTime    ← getZonedTime
+    let utc      = zonedTimeToUTC zonedTime
+        timeZone = zonedTimeZone  zonedTime
+        seconds  = todSec $ localTimeOfDay $ zonedTimeToLocalTime $ zonedTime
+        secsLeft = 60 - seconds -- left to next minute
+
+    put $ Just $ \s → s { lastTime = Just (utc, timeZone) }
+    threadDelay $ ceiling $ secsLeft * 1000 * 1000
+
   -- Handle POSIX signals to terminate application
   let terminate = do mapM_ (removeMatch client) sigHandlers
                      _ ← releaseName client busName
@@ -232,3 +268,6 @@ getDisplayName dpy = map f $ displayString dpy
   where f ':' = '_'
         f '.' = '_'
         f  x  =  x
+
+renderDate ∷ FormatTime t ⇒ t → String
+renderDate = formatTime defaultTimeLocale dateFormat
