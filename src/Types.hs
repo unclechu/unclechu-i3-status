@@ -4,11 +4,13 @@
 {-# LANGUAGE UnicodeSyntax #-}
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 
 module Types
   ( State (..)
   , ProtocolInitialization (..)
   , Unit (..)
+  , ClickEvent (..)
   ) where
 
 import "base-unicode-symbols" Prelude.Unicode
@@ -20,8 +22,10 @@ import "aeson"        Data.Aeson.Types (Options (fieldLabelModifier), camelTo2)
 import "time"         Data.Time.Clock (UTCTime)
 import "time"         Data.Time.LocalTime (TimeZone)
 import "aeson"        Data.Aeson ( ToJSON (toJSON)
+                                 , FromJSON (parseJSON)
                                  , defaultOptions
                                  , genericToJSON
+                                 , genericParseJSON
                                  )
 
 
@@ -112,6 +116,22 @@ instance Default Unit where
 
 instance ToJSON Unit where
   toJSON = genericToJSON $ withFieldNamer f
+    where f ('_':xs) = xs; f x = x
+
+
+data ClickEvent
+  = ClickEvent
+  { name      ∷ Maybe String
+  , _instance ∷ Maybe String
+  , button    ∷ Word8
+  , _x        ∷ Int
+  , _y        ∷ Int
+  }
+
+  deriving (Show, Eq, Generic)
+
+instance FromJSON ClickEvent where
+  parseJSON = genericParseJSON $ withFieldNamer f
     where f ('_':xs) = xs; f x = x
 
 

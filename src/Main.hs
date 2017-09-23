@@ -6,6 +6,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 
 module Main (main) where
 
@@ -16,37 +18,60 @@ import "base"         Data.Bool (bool)
 import "base"         Data.Tuple (swap)
 import "base"         Data.Fixed (Pico)
 import "base"         Data.Maybe (fromMaybe)
-import "aeson"        Data.Aeson (encode)
-import "bytestring"   Data.ByteString.Lazy.Char8 (ByteString, hPutStrLn, append)
-import "time"         Data.Time.LocalTime ( TimeOfDay (todSec)
-                                          , LocalTime (localTimeOfDay)
-                                          , ZonedTime ( zonedTimeToLocalTime
-                                                      , zonedTimeZone
-                                                      )
+import "aeson"        Data.Aeson (encode, decodeStrict)
+import "time"         Data.Time.Clock (UTCTime)
+import "bytestring"   Data.ByteString.Char8 (hGetLine, unsnoc)
 
-                                          , getZonedTime
-                                          , zonedTimeToUTC
-                                          , utcToZonedTime
-                                          )
+import "bytestring"   Data.ByteString.Lazy.Char8 ( ByteString
+                                                 , hPutStrLn
+                                                 , append
+                                                 )
 
 import "time"         Data.Time.Format ( FormatTime
                                        , formatTime
                                        , defaultTimeLocale
                                        )
 
+import "time"         Data.Time.LocalTime
+  ( TimeZone
+  , TimeOfDay (todSec)
+  , LocalTime (localTimeOfDay)
+  , ZonedTime ( zonedTimeToLocalTime
+              , zonedTimeZone
+              )
+
+  , getZonedTime
+  , zonedTimeToUTC
+  , utcToZonedTime
+  )
+
+
 import "base" Control.Monad (when, forever)
 import "base" Control.Concurrent (forkIO, threadDelay)
 import "base" Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
 
-import "base" System.IO (hFlush, stdout)
-import "base" System.Exit (die, exitSuccess)
-import "unix" System.Posix.Signals ( installHandler
-                                   , Handler (Catch)
-                                   , sigHUP
-                                   , sigINT
-                                   , sigTERM
-                                   , sigPIPE
-                                   )
+import "base"    System.IO (stdout, stdin, hFlush)
+import "base"    System.Exit (die, exitSuccess)
+
+import "process" System.Process ( CreateProcess ( std_in
+                                                , std_out
+                                                , std_err
+                                                , new_session
+                                                )
+
+                                , StdStream (NoStream)
+                                , proc
+                                , createProcess
+                                )
+
+import "unix"    System.Posix.Signals ( installHandler
+                                      , Handler (Catch)
+                                      , sigHUP
+                                      , sigINT
+                                      , sigTERM
+                                      , sigPIPE
+                                      )
+
 
 import "dbus" DBus ( ObjectPath
                    , InterfaceName
@@ -85,7 +110,11 @@ import "X11" Graphics.X11.Xlib ( Display
 -- local imports
 
 import ParentProc (dieWithParent)
-import Types (State (..), ProtocolInitialization (..), Unit (..))
+import Types ( State (..)
+             , ProtocolInitialization (..)
+             , Unit (..)
+             , ClickEvent (..)
+             )
 
 
 objPath ∷ ObjectPath
@@ -157,15 +186,26 @@ view s = encode [ numLockView
         --                     }
 
 
-fetchDateAndTime ∷ IO (Pico, State → State)
-fetchDateAndTime = do
-  zonedTime    ← getZonedTime
-  let utc      = zonedTimeToUTC zonedTime
-      timeZone = zonedTimeZone  zonedTime
-      seconds  = todSec $ localTimeOfDay $ zonedTimeToLocalTime $ zonedTime
+fetchDateAndTime ∷ IO (Pico, UTCTime, TimeZone)
+fetchDateAndTime = getZonedTime <&> \zt →
+
+  let utc      = zonedTimeToUTC zt
+      timeZone = zonedTimeZone  zt
+      seconds  = todSec $ localTimeOfDay $ zonedTimeToLocalTime $ zt
       secsLeft = 60 - seconds -- left to next minute
 
-  return (secsLeft, \s → s { lastTime = Just (utc, timeZone) })
+   in (secsLeft, utc, timeZone)
+
+
+handleClickEvent ∷ ClickEvent → IO ()
+handleClickEvent ((name ∷ ClickEvent → Maybe String) → Just x) = case x of
+  "numlock"     → return () -- TODO
+  "capslock"    → return () -- TODO
+  "alternative" → return () -- TODO
+  "kbdlayout"   → return () -- TODO
+  "datentime"   → spawnProc "gnome-calendar" []
+  _             → return ()
+handleClickEvent _ = return ()
 
 
 main ∷ IO ()
@@ -231,9 +271,19 @@ main = do
 
   -- Fetcing date and time thread
   _ ← forkIO $ forever $ do
-    (secondsLeftToNextMinute, stateModifier) ← fetchDateAndTime
-    put $ Just stateModifier
+    (secondsLeftToNextMinute, utc, timeZone) ← fetchDateAndTime
+    put $ Just $ \s → s { lastTime = Just (utc, timeZone) }
     threadDelay $ ceiling $ secondsLeftToNextMinute * 1000 * 1000
+
+  -- Reading click events from i3-bar
+  _ ← forkIO $ do
+    !"[" ← hGetLine stdin -- Opening of lazy list
+    do -- First one (without comma)
+      Just ev ← decodeStrict <$> hGetLine stdin
+      handleClickEvent ev
+    forever $ do
+      Just ev ← (\(unsnoc → Just (x, ',')) → decodeStrict x) <$> hGetLine stdin
+      handleClickEvent ev
 
   -- Handle POSIX signals to terminate application
   let terminate = do mapM_ (removeMatch client) sigHandlers
@@ -247,8 +297,8 @@ main = do
 
   dieWithParent -- make this app die if parent die
 
-  echo $ encode (def ∷ ProtocolInitialization)
-  echo "[" -- open lazy list
+  echo $ encode (def ∷ ProtocolInitialization) { clickEvents = True }
+  echo "[" -- Opening of lazy list
 
   -- Main thread is reactive loop that gets state modifier from another thread
   -- to update the state and re-render it (if it's Just) or terminate the
@@ -278,3 +328,14 @@ getDisplayName dpy = map f $ displayString dpy
 
 renderDate ∷ FormatTime t ⇒ t → String
 renderDate = formatTime defaultTimeLocale dateFormat
+
+(<&>) ∷ Functor f ⇒ f a → (a → b) → f b
+(<&>) = flip (<$>)
+
+spawnProc ∷ FilePath → [String] → IO ()
+spawnProc cmd args = () <$ createProcess (proc cmd args)
+  { std_in      = NoStream
+  , std_out     = NoStream
+  , std_err     = NoStream
+  , new_session = True
+  }
