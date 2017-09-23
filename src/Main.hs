@@ -58,6 +58,7 @@ import "dbus" DBus ( ObjectPath
                    , busName_
                    , signal
                    )
+
 import "dbus" DBus.Client ( connectSession
                           , disconnect
                           , requestName
@@ -145,9 +146,8 @@ view s = encode [ numLockView
 
           | otherwise = def { fullText = "%ERROR%", color = Just "#ff0000" }
 
-        dateAndTimeView
-          = fromMaybe def { fullText = "…" }
-          $ set ∘ render <$> lastTime s
+        dateAndTimeView =
+          fromMaybe def { fullText = "…" } $ set ∘ render <$> lastTime s
           where render = renderDate ∘ uncurry utcToZonedTime ∘ swap
                 set x  = def { fullText = x, name = Just "datentime" }
 
