@@ -8,6 +8,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE TupleSections #-}
 
 module Main (main) where
 
@@ -20,7 +21,7 @@ import "base"         Data.Fixed (Pico)
 import "base"         Data.Maybe (fromMaybe)
 import "aeson"        Data.Aeson (encode, decodeStrict)
 import "time"         Data.Time.Clock (UTCTime)
-import "bytestring"   Data.ByteString.Char8 (hGetLine, unsnoc)
+import "bytestring"   Data.ByteString.Char8 (hGetLine, uncons)
 
 import "bytestring"   Data.ByteString.Lazy.Char8 ( ByteString
                                                  , hPutStrLn
@@ -72,6 +73,17 @@ import "unix"    System.Posix.Signals ( installHandler
                                       , sigPIPE
                                       )
 
+import "X11"  Graphics.X11.Types ( xK_Num_Lock
+                                 , xK_Caps_Lock
+                                 , xK_Shift_L
+                                 , xK_Shift_R
+                                 )
+
+import "X11"  Graphics.X11.Xlib ( Display
+                                , openDisplay
+                                , closeDisplay
+                                , displayString
+                                )
 
 import "dbus" DBus ( ObjectPath
                    , InterfaceName
@@ -101,14 +113,9 @@ import "dbus" DBus.Client ( connectSession
                                       )
                           )
 
-import "X11" Graphics.X11.Xlib ( Display
-                               , openDisplay
-                               , closeDisplay
-                               , displayString
-                               )
-
 -- local imports
 
+import X (initThreads, fakeKeyEvent)
 import ParentProc (dieWithParent)
 import Types ( State (..)
              , ProtocolInitialization (..)
@@ -199,17 +206,25 @@ fetchDateAndTime = getZonedTime <&> \zt →
 
 handleClickEvent ∷ ClickEvent → IO ()
 handleClickEvent ((name ∷ ClickEvent → Maybe String) → Just x) = case x of
-  "numlock"     → return () -- TODO
-  "capslock"    → return () -- TODO
-  "alternative" → return () -- TODO
-  "kbdlayout"   → return () -- TODO
+
+  "numlock"     → fakeKeyEvent $ map (xK_Num_Lock,)  [False, True, False]
+  "capslock"    → fakeKeyEvent $ map (xK_Caps_Lock,) [False, True, False]
+  "alternative" → return () -- TODO toggling by dbus
+
+  "kbdlayout"   → fakeKeyEvent $
+                    let reducer s acc = (xK_Shift_L, s) : (xK_Shift_R, s) : acc
+                     in foldr reducer [] [False, True, False]
+
   "datentime"   → spawnProc "gnome-calendar" []
   _             → return ()
+
 handleClickEvent _ = return ()
 
 
 main ∷ IO ()
 main = do
+  initThreads
+
   -- Connecting to DBus
   client  ← connectSession
 
@@ -282,7 +297,7 @@ main = do
       Just ev ← decodeStrict <$> hGetLine stdin
       handleClickEvent ev
     forever $ do
-      Just ev ← (\(unsnoc → Just (x, ',')) → decodeStrict x) <$> hGetLine stdin
+      Just ev ← (\(uncons → Just (',', x)) → decodeStrict x) <$> hGetLine stdin
       handleClickEvent ev
 
   -- Handle POSIX signals to terminate application
