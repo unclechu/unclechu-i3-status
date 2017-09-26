@@ -290,18 +290,15 @@ main = do
     put $ Just $ \s → s { lastTime = Just (utc, timeZone) }
     threadDelay $ ceiling $ secondsLeftToNextMinute * 1000 * 1000
 
-  let _objPath = "/"
-      _busName = busName_ $ "com.github.unclechu.xlib_keys_hack." ++ dpyView
+  let _busName = busName_ $ "com.github.unclechu.xlib_keys_hack." ++ dpyView
       _iface   = "com.github.unclechu.xlib_keys_hack"
 
-      toggleAlternativeMode =
-        emit client (signal _objPath _iface "toggle_alternative_mode")
+      handleEv = handleClickEvent $
+        emit client (signal "/" _iface "toggle_alternative_mode")
                       { signalSender      = Just busName
                       , signalDestination = Just _busName
                       , signalBody        = []
                       }
-
-      handleEv = handleClickEvent toggleAlternativeMode
 
   -- Reading click events from i3-bar
   _ ← forkIO $ do
