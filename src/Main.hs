@@ -204,21 +204,21 @@ fetchDateAndTime = getZonedTime <&> \zt →
    in (secsLeft, utc, timeZone)
 
 
-handleClickEvent ∷ ClickEvent → IO ()
-handleClickEvent ((name ∷ ClickEvent → Maybe String) → Just x) = case x of
+handleClickEvent ∷ IO () → ClickEvent → IO ()
+handleClickEvent tglAlt ((\x → name (x ∷ ClickEvent)) → Just x) = case x of
 
   "numlock"     → fakeKeyEvent $ map (xK_Num_Lock,)  [False, True, False]
   "capslock"    → fakeKeyEvent $ map (xK_Caps_Lock,) [False, True, False]
-  "alternative" → return () -- TODO toggling by dbus
+  "datentime"   → spawnProc "gnome-calendar" []
+  "alternative" → tglAlt
 
   "kbdlayout"   → fakeKeyEvent $
                     let reducer s acc = (xK_Shift_L, s) : (xK_Shift_R, s) : acc
                      in foldr reducer [] [False, True, False]
 
-  "datentime"   → spawnProc "gnome-calendar" []
   _             → return ()
 
-handleClickEvent _ = return ()
+handleClickEvent _ _ = return ()
 
 
 main ∷ IO ()
@@ -290,15 +290,28 @@ main = do
     put $ Just $ \s → s { lastTime = Just (utc, timeZone) }
     threadDelay $ ceiling $ secondsLeftToNextMinute * 1000 * 1000
 
+  let _objPath = "/"
+      _busName = busName_ $ "com.github.unclechu.xlib_keys_hack." ++ dpyView
+      _iface   = "com.github.unclechu.xlib_keys_hack"
+
+      toggleAlternativeMode =
+        emit client (signal _objPath _iface "toggle_alternative_mode")
+                      { signalSender      = Just busName
+                      , signalDestination = Just _busName
+                      , signalBody        = []
+                      }
+
+      handleEv = handleClickEvent toggleAlternativeMode
+
   -- Reading click events from i3-bar
   _ ← forkIO $ do
     !"[" ← hGetLine stdin -- Opening of lazy list
     do -- First one (without comma)
       Just ev ← decodeStrict <$> hGetLine stdin
-      handleClickEvent ev
+      handleEv ev
     forever $ do
       Just ev ← (\(uncons → Just (',', x)) → decodeStrict x) <$> hGetLine stdin
-      handleClickEvent ev
+      handleEv ev
 
   -- Handle POSIX signals to terminate application
   let terminate = do mapM_ (removeMatch client) sigHandlers
