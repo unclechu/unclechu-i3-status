@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 6888b4d277a983015a94a6bdc13a0bb90698d67355e099c0d18c44bfe834d07e
+-- hash: 2a5be7eccb5806ded8f72feda76a17f7dd71082ce903e293f3fa89595591fddc
 
 name:           unclechu-i3-status
 version:        0.0.0
@@ -32,6 +32,7 @@ library
     , dbus
     , directory
     , process
+    , qm-interpolated-string
     , time
     , unix
   build-tools:
@@ -60,6 +61,7 @@ executable unclechu-i3-status
     , dbus
     , directory
     , process
+    , qm-interpolated-string
     , time
     , unclechu-i3-status
     , unix

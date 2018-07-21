@@ -9,12 +9,14 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE QuasiQuotes #-}
 
 module Main (main) where
 
 import "base-unicode-symbols" Prelude.Unicode
 
 import "data-default" Data.Default (def)
+import "base"         Data.Monoid ((<>))
 import "base"         Data.Bool (bool)
 import "base"         Data.Tuple (swap)
 import "base"         Data.Fixed (Pico)
@@ -46,6 +48,7 @@ import "time"         Data.Time.LocalTime
                         , utcToZonedTime
                         )
 
+import "qm-interpolated-string" Text.InterpolatedString.QM (qm)
 
 import "base" Control.Monad (when, forever)
 import "base" Control.Concurrent (forkIO, threadDelay)
@@ -233,13 +236,13 @@ main = do
                let x = getDisplayName dpy
                x <$ (x `seq` closeDisplay dpy)
 
-  let busName = busName_ $ busNamePfx ⧺ dpyView
-      flushObjPath = objectPath_ $ flushObjPathPfx ⧺ dpyView
+  let busName = busName_ $ busNamePfx ◇ dpyView
+      flushObjPath = objectPath_ $ flushObjPathPfx ◇ dpyView
 
   -- Grab the bus name for our service
   requestName client busName [] >>= \reply →
     when (reply ≢ NamePrimaryOwner) $
-      die $ "Requesting name '" ⧺ show busName ⧺ "' error: " ⧺ show reply
+      die [qm| Requesting name '{busName}' error: {reply} |]
 
   mVar ← newEmptyMVar
 
@@ -288,9 +291,9 @@ main = do
   _ ← forkIO $ forever $ do
     (secondsLeftToNextMinute, utc, timeZone) ← fetchDateAndTime
     put $ Just $ \s → s { lastTime = Just (utc, timeZone) }
-    threadDelay $ ceiling $ secondsLeftToNextMinute * 1000 * 1000
+    threadDelay $ ceiling $ secondsLeftToNextMinute × 1000 × 1000
 
-  let _busName = busName_ $ "com.github.unclechu.xlib_keys_hack." ++ dpyView
+  let _busName = busName_ [qm| com.github.unclechu.xlib_keys_hack.{dpyView} |]
       _iface   = "com.github.unclechu.xlib_keys_hack"
 
       handleEv = handleClickEvent $
@@ -354,8 +357,12 @@ getDisplayName dpy = map f $ displayString dpy
 renderDate ∷ FormatTime t ⇒ t → String
 renderDate = formatTime defaultTimeLocale dateFormat
 
-(<&>) ∷ Functor f ⇒ f a → (a → b) → f b
+(◇) ∷ Monoid α ⇒ α → α → α; (◇) = (<>); {-# INLINE (◇) #-}
+(×) ∷ Num α ⇒ α → α → α;    (×) = (*);  {-# INLINE (×) #-}
+
+(<&>) ∷ Functor φ ⇒ φ α → (α → β) → φ β
 (<&>) = flip (<$>)
+{-# INLINE (<&>) #-}
 
 spawnProc ∷ FilePath → [String] → IO ()
 spawnProc cmd args = () <$ createProcess (proc cmd args)

@@ -17,6 +17,7 @@ dependencies:
   - directory
   - process
   - process
+  - qm-interpolated-string
   - time
   - unix
   - X11
