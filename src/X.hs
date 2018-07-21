@@ -8,9 +8,9 @@
 {-# LANGUAGE TupleSections #-}
 
 module X
-  ( initThreads
-  , fakeKeyEvent
-  ) where
+     ( initThreads
+     , fakeKeyEvent
+     ) where
 
 import "base-unicode-symbols" Prelude.Unicode
 
@@ -34,7 +34,7 @@ foreign import ccall unsafe "X11/extensions/XTest.h XTestFakeKeyEvent"
   xFakeKeyEvent ∷ Display → KeyCode → Bool → CULong → IO Status
 
 foreign import ccall unsafe "X11/Xlib.h XInitThreads"
-  xInitThreads :: IO Status
+  xInitThreads ∷ IO Status
 
 
 initThreads ∷ IO ()

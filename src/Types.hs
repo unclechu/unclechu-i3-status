@@ -7,11 +7,11 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 
 module Types
-  ( State (..)
-  , ProtocolInitialization (..)
-  , Unit (..)
-  , ClickEvent (..)
-  ) where
+     ( State (..)
+     , ProtocolInitialization (..)
+     , Unit (..)
+     , ClickEvent (..)
+     ) where
 
 import "base-unicode-symbols" Prelude.Unicode
 import "base" GHC.Generics (Generic)
@@ -30,18 +30,16 @@ import "aeson"        Data.Aeson ( ToJSON (toJSON)
 
 
 data State
-  = State
-  { numLock     ∷ Bool
-  , capsLock    ∷ Bool
-  , alternative ∷ Bool
-  , kbdLayout   ∷ Word8
-  , lastTime    ∷ Maybe (UTCTime, TimeZone)
-                      -- ^ The reason why don't just store ZonedTime here
-                      --   is that it doesn't have Eq instance.
-                      --   See https://github.com/haskell/time/issues/50
-  }
-
-  deriving (Show, Eq)
+   = State
+   { numLock     ∷ Bool
+   , capsLock    ∷ Bool
+   , alternative ∷ Bool
+   , kbdLayout   ∷ Word8
+   , lastTime    ∷ Maybe (UTCTime, TimeZone)
+                       -- ^ The reason why don't just store ZonedTime here
+                       --   is that it doesn't have Eq instance.
+                       --   See https://github.com/haskell/time/issues/50
+   } deriving (Show, Eq)
 
 instance Default State where
   def
@@ -55,14 +53,12 @@ instance Default State where
 
 
 data ProtocolInitialization
-  = ProtocolInitialization
-  { version     ∷ Word
-  , stopSignal  ∷ Maybe Int
-  , contSignal  ∷ Maybe Int
-  , clickEvents ∷ Bool
-  }
-
-  deriving (Show, Eq, Generic)
+   = ProtocolInitialization
+   { version     ∷ Word
+   , stopSignal  ∷ Maybe Int
+   , contSignal  ∷ Maybe Int
+   , clickEvents ∷ Bool
+   } deriving (Show, Eq, Generic)
 
 instance Default ProtocolInitialization where
   def
@@ -78,23 +74,21 @@ instance ToJSON ProtocolInitialization where
 
 
 data Unit
-  = Unit
-  { fullText            ∷ String
-  , shortText           ∷ Maybe String
-  , color               ∷ Maybe String
-  , background          ∷ Maybe String
-  , border              ∷ Maybe String
-  , minWidth            ∷ Maybe Word
-  , align               ∷ Maybe String
-  , name                ∷ Maybe String
-  , _instance           ∷ Maybe String
-  , urgent              ∷ Maybe Bool
-  , separator           ∷ Maybe Bool
-  , separatorBlockWidth ∷ Maybe Word
-  , markup              ∷ Maybe String
-  }
-
-  deriving (Show, Eq, Generic)
+   = Unit
+   { fullText            ∷ String
+   , shortText           ∷ Maybe String
+   , color               ∷ Maybe String
+   , background          ∷ Maybe String
+   , border              ∷ Maybe String
+   , minWidth            ∷ Maybe Word
+   , align               ∷ Maybe String
+   , name                ∷ Maybe String
+   , _instance           ∷ Maybe String
+   , urgent              ∷ Maybe Bool
+   , separator           ∷ Maybe Bool
+   , separatorBlockWidth ∷ Maybe Word
+   , markup              ∷ Maybe String
+   } deriving (Show, Eq, Generic)
 
 instance Default Unit where
   def
@@ -120,15 +114,13 @@ instance ToJSON Unit where
 
 
 data ClickEvent
-  = ClickEvent
-  { name      ∷ Maybe String
-  , _instance ∷ Maybe String
-  , button    ∷ Word8
-  , _x        ∷ Int
-  , _y        ∷ Int
-  }
-
-  deriving (Show, Eq, Generic)
+   = ClickEvent
+   { name      ∷ Maybe String
+   , _instance ∷ Maybe String
+   , button    ∷ Word8
+   , _x        ∷ Int
+   , _y        ∷ Int
+   } deriving (Show, Eq, Generic)
 
 instance FromJSON ClickEvent where
   parseJSON = genericParseJSON $ withFieldNamer f

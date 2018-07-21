@@ -34,17 +34,17 @@ import "time"         Data.Time.Format ( FormatTime
                                        )
 
 import "time"         Data.Time.LocalTime
-  ( TimeZone
-  , TimeOfDay (todSec)
-  , LocalTime (localTimeOfDay)
-  , ZonedTime ( zonedTimeToLocalTime
-              , zonedTimeZone
-              )
+                        ( TimeZone
+                        , TimeOfDay (todSec)
+                        , LocalTime (localTimeOfDay)
+                        , ZonedTime ( zonedTimeToLocalTime
+                                    , zonedTimeZone
+                                    )
 
-  , getZonedTime
-  , zonedTimeToUTC
-  , utcToZonedTime
-  )
+                        , getZonedTime
+                        , zonedTimeToUTC
+                        , utcToZonedTime
+                        )
 
 
 import "base" Control.Monad (when, forever)
@@ -268,9 +268,9 @@ main = do
         num  = fromMaybe 0     . fromVariant
 
         handle stateModifier (signalBody → [x]) = case variantType x of
-          TypeBoolean -> put $ Just $ stateModifier x
-          TypeWord8   -> put $ Just $ stateModifier x
-          _           -> return () -- Incorrect arguments, just ignoring it
+          TypeBoolean → put $ Just $ stateModifier x
+          TypeWord8   → put $ Just $ stateModifier x
+          _           → return () -- Incorrect arguments, just ignoring it
 
         -- Incorrect arguments, just ignoring it
         handle _ _ = return ()
@@ -333,7 +333,7 @@ main = do
 
       handle prevState (Just stateModifier) =
         let newState = stateModifier prevState
-         in if newState == prevState
+         in if newState ≡ prevState
                then return prevState
                else newState <$ echo ("," `append` view newState)
 
