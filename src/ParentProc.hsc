@@ -1,5 +1,5 @@
 -- Author: Viacheslav Lotsmanov
--- License: GPLv3 https://raw.githubusercontent.com/unclechu/TODO/master/LICENSE
+-- License: GPLv3 https://raw.githubusercontent.com/unclechu/unclechu-i3-status/master/LICENSE
 
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
