@@ -3,12 +3,15 @@
 
 module Utils
      ( (×), (◇), (<&>)
+     , module Prelude.Unicode
      , module Data.Function
      , echo
      , renderDate
      , getDisplayName
      , spawnProc
      ) where
+
+import "base-unicode-symbols" Prelude.Unicode
 
 import "base" Data.Function ((&))
 import "base" Data.Monoid ((<>))

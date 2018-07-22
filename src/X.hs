@@ -12,8 +12,6 @@ module X
      , fakeKeyEvent
      ) where
 
-import "base-unicode-symbols" Prelude.Unicode
-
 import "base" Control.Monad (forM, void)
 import "base" Control.Concurrent (forkIO)
 
@@ -28,6 +26,8 @@ import "X11"  Graphics.X11.Xlib ( Display (Display)
                                 , closeDisplay
                                 , sync
                                 )
+
+import Utils
 
 
 foreign import ccall unsafe "X11/extensions/XTest.h XTestFakeKeyEvent"

@@ -13,8 +13,6 @@
 
 module Main (main) where
 
-import "base-unicode-symbols" Prelude.Unicode
-
 import "data-default" Data.Default (def)
 import "base"         Data.Bool (bool)
 import "base"         Data.Tuple (swap)

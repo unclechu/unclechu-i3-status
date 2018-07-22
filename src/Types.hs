@@ -17,7 +17,6 @@ module Types
      , XlibKeysHackIfaceParams (..)
      ) where
 
-import "base-unicode-symbols" Prelude.Unicode
 import "base" GHC.Generics (Generic)
 
 import "base"         Data.Word (Word, Word8)
