@@ -113,6 +113,7 @@ import "dbus" DBus.Client ( connectSession
 
 -- local imports
 
+import Utils
 import X (initThreads, fakeKeyEvent)
 import ParentProc (dieWithParent)
 import Types ( State (..)
@@ -344,12 +345,6 @@ getDisplayName dpy = fmap f $ displayString dpy
   where f ':' = '_'
         f '.' = '_'
         f  x  =  x
-
-(×) ∷ Num α ⇒ α → α → α; (×) = (*); {-# INLINE (×) #-}
-
-(<&>) ∷ Functor φ ⇒ φ α → (α → β) → φ β
-(<&>) = flip (<$>)
-{-# INLINE (<&>) #-}
 
 spawnProc ∷ FilePath → [String] → IO ()
 spawnProc cmd args = () <$ createProcess (proc cmd args)

@@ -7,7 +7,6 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE QuasiQuotes #-}
 
 module Types
      ( State (..)
@@ -33,10 +32,10 @@ import "aeson"        Data.Aeson ( ToJSON (toJSON)
                                  , genericParseJSON
                                  )
 
-import "qm-interpolated-string" Text.InterpolatedString.QM (qm)
-
 import "dbus" DBus (ObjectPath, BusName, InterfaceName)
 import qualified "dbus" DBus as DBus
+
+import Utils
 
 
 data State
@@ -149,13 +148,8 @@ instance Default XmonadrcIfaceParams where
   def
     = XmonadrcIfaceParams
     { objPath       = "/"
-
-    , flushObjPath  = \d → DBus.objectPath_
-                             [qm| /com/github/unclechu/xmonadrc/{d} |]
-
-    , busName       = \d → DBus.busName_
-                             [qm| com.github.unclechu.xmonadrc.{d} |]
-
+    , flushObjPath  = DBus.objectPath_ ∘ ("/com/github/unclechu/xmonadrc/" ◇)
+    , busName       = DBus.busName_ ∘ ("com.github.unclechu.xmonadrc." ◇)
     , interfaceName = "com.github.unclechu.xmonadrc"
     }
 
@@ -171,10 +165,7 @@ instance Default XlibKeysHackIfaceParams where
   def
     = XlibKeysHackIfaceParams
     { objPath       = "/"
-
-    , busName       = \d → DBus.busName_
-                             [qm| com.github.unclechu.xlib_keys_hack.{d} |]
-
+    , busName       = DBus.busName_ ∘ ("com.github.unclechu.xlib_keys_hack." ◇)
     , interfaceName = "com.github.unclechu.xlib_keys_hack"
     }
 
