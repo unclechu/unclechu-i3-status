@@ -5,12 +5,17 @@
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE QuasiQuotes #-}
 
 module Types
      ( State (..)
      , ProtocolInitialization (..)
      , Unit (..)
      , ClickEvent (..)
+     , XmonadrcIfaceParams (..)
+     , XlibKeysHackIfaceParams (..)
      ) where
 
 import "base-unicode-symbols" Prelude.Unicode
@@ -27,6 +32,11 @@ import "aeson"        Data.Aeson ( ToJSON (toJSON)
                                  , genericToJSON
                                  , genericParseJSON
                                  )
+
+import "qm-interpolated-string" Text.InterpolatedString.QM (qm)
+
+import "dbus" DBus (ObjectPath, BusName, InterfaceName)
+import qualified "dbus" DBus as DBus
 
 
 data State
@@ -125,6 +135,48 @@ data ClickEvent
 instance FromJSON ClickEvent where
   parseJSON = genericParseJSON $ withFieldNamer f
     where f ('_':xs) = xs; f x = x
+
+
+data XmonadrcIfaceParams
+   = XmonadrcIfaceParams
+   { objPath       ∷ ObjectPath
+   , flushObjPath  ∷ String → ObjectPath
+   , busName       ∷ String → BusName
+   , interfaceName ∷ InterfaceName
+   }
+
+instance Default XmonadrcIfaceParams where
+  def
+    = XmonadrcIfaceParams
+    { objPath       = "/"
+
+    , flushObjPath  = \d → DBus.objectPath_
+                             [qm| /com/github/unclechu/xmonadrc/{d} |]
+
+    , busName       = \d → DBus.busName_
+                             [qm| com.github.unclechu.xmonadrc.{d} |]
+
+    , interfaceName = "com.github.unclechu.xmonadrc"
+    }
+
+
+data XlibKeysHackIfaceParams
+   = XlibKeysHackIfaceParams
+   { objPath       ∷ ObjectPath
+   , busName       ∷ String → BusName
+   , interfaceName ∷ InterfaceName
+   }
+
+instance Default XlibKeysHackIfaceParams where
+  def
+    = XlibKeysHackIfaceParams
+    { objPath       = "/"
+
+    , busName       = \d → DBus.busName_
+                             [qm| com.github.unclechu.xlib_keys_hack.{d} |]
+
+    , interfaceName = "com.github.unclechu.xlib_keys_hack"
+    }
 
 
 withFieldNamer ∷ (String → String) → Options

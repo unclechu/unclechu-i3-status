@@ -16,7 +16,6 @@ module Main (main) where
 import "base-unicode-symbols" Prelude.Unicode
 
 import "data-default" Data.Default (def)
-import "base"         Data.Monoid ((<>))
 import "base"         Data.Bool (bool)
 import "base"         Data.Tuple (swap)
 import "base"         Data.Fixed (Pico)
@@ -48,7 +47,7 @@ import "time"         Data.Time.LocalTime
                         , utcToZonedTime
                         )
 
-import "qm-interpolated-string" Text.InterpolatedString.QM (qm)
+import "qm-interpolated-string" Text.InterpolatedString.QM (qms)
 
 import "base" Control.Monad (when, forever)
 import "base" Control.Concurrent (forkIO, threadDelay)
@@ -88,14 +87,10 @@ import "X11"  Graphics.X11.Xlib ( Display
                                 , displayString
                                 )
 
-import "dbus" DBus ( ObjectPath
-                   , InterfaceName
-                   , Signal (signalBody, signalSender, signalDestination)
+import "dbus" DBus ( Signal (signalBody, signalSender, signalDestination)
                    , IsVariant (fromVariant)
                    , Type (TypeBoolean, TypeWord8)
                    , variantType
-                   , objectPath_
-                   , busName_
                    , signal
                    )
 
@@ -124,24 +119,9 @@ import Types ( State (..)
              , ProtocolInitialization (..)
              , Unit (..)
              , ClickEvent (..)
+             , XmonadrcIfaceParams (..)
+             , XlibKeysHackIfaceParams (..)
              )
-
-
-objPath ∷ ObjectPath
-objPath = "/"
-
-flushObjPathPfx ∷ String
-flushObjPathPfx = "/com/github/unclechu/xmonadrc/"
-
--- To add current Display suffix
-busNamePfx ∷ String
-busNamePfx = "com.github.unclechu.xmonadrc."
-
-interfaceName ∷ InterfaceName
-interfaceName = "com.github.unclechu.xmonadrc"
-
-dateFormat ∷ String
-dateFormat = "%A %-d %B %H:%M"
 
 
 view ∷ State → ByteString
@@ -232,33 +212,37 @@ main = do
   client  ← connectSession
 
   -- Getting bus name for our service that depends on Display name
-  dpyView ← do dpy   ← openDisplay ""
-               let x = getDisplayName dpy
-               x <$ (x `seq` closeDisplay dpy)
-
-  let busName = busName_ $ busNamePfx ◇ dpyView
-      flushObjPath = objectPath_ $ flushObjPathPfx ◇ dpyView
+  dpyView ← do dpy    ← openDisplay ""
+               let !x = getDisplayName dpy
+               x <$ closeDisplay dpy
 
   -- Grab the bus name for our service
-  requestName client busName [] >>= \reply →
-    when (reply ≢ NamePrimaryOwner) $
-      die [qm| Requesting name '{busName}' error: {reply} |]
+  requestName client (busName (def ∷ XmonadrcIfaceParams) dpyView) []
+    >>= \reply →
+          when (reply ≢ NamePrimaryOwner) $
+            die [qms| Requesting name
+                      '{busName (def ∷ XmonadrcIfaceParams) dpyView}'
+                      error: {reply} |]
 
   mVar ← newEmptyMVar
 
   let put = putMVar mVar
 
-      basicMatchRule = matchAny { matchPath        = Just objPath
-                                , matchInterface   = Just interfaceName
-                                , matchDestination = Just busName
-                                , matchSender      = Nothing
-                                }
+      basicMatchRule = matchAny
+        { matchPath        = Just $ objPath (def ∷ XmonadrcIfaceParams)
+        , matchInterface   = Just $ interfaceName (def ∷ XmonadrcIfaceParams)
+        , matchDestination = Just $ busName (def ∷ XmonadrcIfaceParams) dpyView
+        , matchSender      = Nothing
+        }
 
   -- If `xlib-keys-hack` started before ask it to reflush indicators
-  emit client (signal flushObjPath interfaceName "request_flush_all")
-                { signalSender      = Just busName
+  emit client ( signal (flushObjPath  (def ∷ XmonadrcIfaceParams) dpyView)
+                       (interfaceName (def ∷ XmonadrcIfaceParams))
+                       "request_flush_all"
+              ) { signalSender =
+                    Just $ busName (def ∷ XmonadrcIfaceParams) dpyView
                 , signalDestination = Nothing
-                , signalBody        = []
+                , signalBody = []
                 }
 
   -- Bind IPC events handlers
@@ -293,14 +277,15 @@ main = do
     put $ Just $ \s → s { lastTime = Just (utc, timeZone) }
     threadDelay $ ceiling $ secondsLeftToNextMinute × 1000 × 1000
 
-  let _busName = busName_ [qm| com.github.unclechu.xlib_keys_hack.{dpyView} |]
-      _iface   = "com.github.unclechu.xlib_keys_hack"
-
-      handleEv = handleClickEvent $
-        emit client (signal "/" _iface "toggle_alternative_mode")
-                      { signalSender      = Just busName
-                      , signalDestination = Just _busName
-                      , signalBody        = []
+  let handleEv = handleClickEvent $
+        emit client ( signal (objPath (def ∷ XlibKeysHackIfaceParams))
+                             (interfaceName (def ∷ XlibKeysHackIfaceParams))
+                             "toggle_alternative_mode"
+                    ) { signalSender =
+                          Just $ busName (def ∷ XmonadrcIfaceParams) dpyView
+                      , signalDestination =
+                          Just $ busName (def ∷ XlibKeysHackIfaceParams) dpyView
+                      , signalBody = []
                       }
 
   -- Reading click events from i3-bar
@@ -315,7 +300,8 @@ main = do
 
   -- Handle POSIX signals to terminate application
   let terminate = do mapM_ (removeMatch client) sigHandlers
-                     _ ← releaseName client busName
+                     _ ← releaseName client
+                       $ busName (def ∷ XmonadrcIfaceParams) dpyView
                      disconnect client
                      put Nothing
 
@@ -348,17 +334,18 @@ main = do
 echo ∷ ByteString → IO ()
 echo s = hPutStrLn stdout s >> hFlush stdout
 
+renderDate ∷ FormatTime t ⇒ t → String
+renderDate = formatTime defaultTimeLocale dateFormat
+  where dateFormat ∷ String
+        dateFormat = "%A %-d %B %H:%M"
+
 getDisplayName ∷ Display → String
-getDisplayName dpy = map f $ displayString dpy
+getDisplayName dpy = fmap f $ displayString dpy
   where f ':' = '_'
         f '.' = '_'
         f  x  =  x
 
-renderDate ∷ FormatTime t ⇒ t → String
-renderDate = formatTime defaultTimeLocale dateFormat
-
-(◇) ∷ Monoid α ⇒ α → α → α; (◇) = (<>); {-# INLINE (◇) #-}
-(×) ∷ Num α ⇒ α → α → α;    (×) = (*);  {-# INLINE (×) #-}
+(×) ∷ Num α ⇒ α → α → α; (×) = (*); {-# INLINE (×) #-}
 
 (<&>) ∷ Functor φ ⇒ φ α → (α → β) → φ β
 (<&>) = flip (<$>)
