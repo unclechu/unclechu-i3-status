@@ -23,16 +23,7 @@ import "base"         Data.Maybe (fromMaybe)
 import "aeson"        Data.Aeson (encode, decodeStrict)
 import "time"         Data.Time.Clock (UTCTime)
 import "bytestring"   Data.ByteString.Char8 (hGetLine, uncons)
-
-import "bytestring"   Data.ByteString.Lazy.Char8 ( ByteString
-                                                 , hPutStrLn
-                                                 , append
-                                                 )
-
-import "time"         Data.Time.Format ( FormatTime
-                                       , formatTime
-                                       , defaultTimeLocale
-                                       )
+import "bytestring"   Data.ByteString.Lazy.Char8 (ByteString, append)
 
 import "time"         Data.Time.LocalTime
                         ( TimeZone
@@ -53,19 +44,8 @@ import "base" Control.Monad (when, forever)
 import "base" Control.Concurrent (forkIO, threadDelay)
 import "base" Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
 
-import "base"    System.IO (stdout, stdin, hFlush)
+import "base"    System.IO (stdin)
 import "base"    System.Exit (die, exitSuccess)
-
-import "process" System.Process ( CreateProcess ( std_in
-                                                , std_out
-                                                , std_err
-                                                , new_session
-                                                )
-
-                                , StdStream (NoStream)
-                                , proc
-                                , createProcess
-                                )
 
 import "unix"    System.Posix.Signals ( installHandler
                                       , Handler (Catch)
@@ -81,11 +61,7 @@ import "X11"  Graphics.X11.Types ( xK_Num_Lock
                                  , xK_Shift_R
                                  )
 
-import "X11"  Graphics.X11.Xlib ( Display
-                                , openDisplay
-                                , closeDisplay
-                                , displayString
-                                )
+import "X11"  Graphics.X11.Xlib (openDisplay, closeDisplay)
 
 import "dbus" DBus ( Signal (signalBody, signalSender, signalDestination)
                    , IsVariant (fromVariant)
@@ -330,26 +306,3 @@ main = do
       next s = takeMVar mVar >>= handle s >>= next
 
    in () <$ echo (view def) >> next def
-
-
-echo ∷ ByteString → IO ()
-echo s = hPutStrLn stdout s >> hFlush stdout
-
-renderDate ∷ FormatTime t ⇒ t → String
-renderDate = formatTime defaultTimeLocale dateFormat
-  where dateFormat ∷ String
-        dateFormat = "%A %-d %B %H:%M"
-
-getDisplayName ∷ Display → String
-getDisplayName dpy = fmap f $ displayString dpy
-  where f ':' = '_'
-        f '.' = '_'
-        f  x  =  x
-
-spawnProc ∷ FilePath → [String] → IO ()
-spawnProc cmd args = () <$ createProcess (proc cmd args)
-  { std_in      = NoStream
-  , std_out     = NoStream
-  , std_err     = NoStream
-  , new_session = True
-  }
