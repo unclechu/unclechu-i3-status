@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 778aa64b9b62f03f87f417c3540521230a4aa08c0186e5faf877d90771c68154
+-- hash: 632ad71e7c54dec9ef777e0490ccb71191f143c6ddc09e936d1db8373be28d74
 
 name:           unclechu-i3-status
 version:        0.0.0
@@ -29,6 +29,7 @@ library
     , base
     , base-unicode-symbols
     , bytestring
+    , containers
     , data-default
     , dbus
     , directory
@@ -60,6 +61,7 @@ executable unclechu-i3-status
     , base
     , base-unicode-symbols
     , bytestring
+    , containers
     , data-default
     , dbus
     , directory

@@ -24,9 +24,9 @@ import "base"         Data.Maybe (fromMaybe)
 import "base"         Data.Either (isRight)
 import "base"         Data.Foldable (find)
 import "aeson"        Data.Aeson (encode, decodeStrict)
-import "time"         Data.Time.Clock (UTCTime)
 import "bytestring"   Data.ByteString.Char8 (hGetLine, uncons)
 import "bytestring"   Data.ByteString.Lazy.Char8 (ByteString, append)
+import "time"         Data.Time.Clock (UTCTime)
 
 import "time"         Data.Time.LocalTime
                         ( TimeZone
@@ -41,9 +41,11 @@ import "time"         Data.Time.LocalTime
                         , utcToZonedTime
                         )
 
+import qualified "containers" Data.Map.Strict as Map
+
 import "qm-interpolated-string" Text.InterpolatedString.QM (qms)
 
-import "base" Control.Monad (when, forever, void)
+import "base" Control.Monad (when, forever)
 import "base" Control.Concurrent (forkIO, threadDelay)
 import "base" Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
 
@@ -68,6 +70,7 @@ import "X11"  Graphics.X11.Xlib (openDisplay, closeDisplay)
 
 import "dbus" DBus ( Signal (signalBody, signalSender, signalDestination)
                    , signal
+                   , Variant
                    , IsVariant (fromVariant, toVariant)
                    , variantType
                    , Type (TypeBoolean, TypeWord8)
@@ -90,8 +93,8 @@ import "dbus" DBus.Client ( Client
                           , matchAny
                           , call_
                           , emit
+                          , SignalHandler
                           , MatchRule ( matchPath
-                                      , matchSender
                                       , matchDestination
                                       , matchInterface
                                       , matchMember
@@ -232,11 +235,6 @@ main = do
                let !x = getDisplayName dpy
                x <$ closeDisplay dpy
 
-  !batteryData ←
-    setUpBatteryIndicator >>=
-      \case Nothing     → pure Nothing
-            Just getter → getter <&!> Just ∘ (,getter)
-
   -- Grab the bus name for our service
   requestName client (busName (def ∷ XmonadrcIfaceParams) dpyView) []
     >>= \reply →
@@ -253,7 +251,6 @@ main = do
         { matchPath        = Just $ objPath (def ∷ XmonadrcIfaceParams)
         , matchInterface   = Just $ interfaceName (def ∷ XmonadrcIfaceParams)
         , matchDestination = Just $ busName (def ∷ XmonadrcIfaceParams) dpyView
-        , matchSender      = Nothing
         }
 
   -- If `xlib-keys-hack` started before ask it to reflush indicators
@@ -298,14 +295,19 @@ main = do
     put $ Just $ \s → s { lastTime = Just (utc, timeZone) }
     threadDelay $ ceiling $ secondsLeftToNextMinute × 1000 × 1000
 
-  -- Fetching battery state thread (optional)
-  case snd <$> batteryData of
-       Nothing → pure ()
-       Just getNextState →
-         void $ forkIO $ forever $ do
-           x@(!_, !_) ← getNextState
-           put $ Just $ \s → s { battery = Just x }
-           threadDelay $ 5 × 1000 × 1000
+  !batteryData ← setUpBatteryIndicator $ \case
+    (Nothing, Nothing) → pure ()
+
+    (Just chargeLeft, Just chargeState) →
+      put $ Just $ \s → s { battery = Just (chargeLeft, chargeState) }
+
+    (Just chargeLeft, Nothing) →
+      put $ Just $ \s → s
+        { battery = snd <$> battery s >>= Just ∘ (chargeLeft,) }
+
+    (Nothing, Just chargeState) →
+      put $ Just $ \s → s
+        { battery = fst <$> battery s >>= Just ∘ (,chargeState) }
 
   let handleEv = handleClickEvent $
         emit client ( signal (objPath (def ∷ XlibKeysHackIfaceParams))
@@ -329,7 +331,8 @@ main = do
       handleEv ev
 
   -- Handle POSIX signals to terminate application
-  let terminate = do mapM_ (removeMatch client) sigHandlers
+  let terminate = do fromMaybe (pure ()) $ snd <$> batteryData -- unsubscribe
+                     mapM_ (removeMatch client) sigHandlers
                      _ ← releaseName client
                        $ busName (def ∷ XmonadrcIfaceParams) dpyView
                      disconnect client
@@ -367,34 +370,44 @@ main = do
 
 type UPowerPropName = String
 
-setUpBatteryIndicator ∷ IO (Maybe (IO (Double, UPowerBatteryState)))
-setUpBatteryIndicator = do
+setUpBatteryIndicator
+  ∷ ((Maybe Double, Maybe UPowerBatteryState) → IO ()) -- Update handler
+  → IO (Maybe ((Double, UPowerBatteryState), IO ())) -- Initial and unsubscriber
+
+setUpBatteryIndicator updateHandler = do
   client ← connectSystem
 
-  call_ client ( methodCall "/org/freedesktop/UPower"
-                            "org.freedesktop.UPower"
-                            "EnumerateDevices"
-               ) { methodCallDestination = Just "org.freedesktop.UPower" }
+  !batteryObjPath ←
+    call_ client ( methodCall "/org/freedesktop/UPower"
+                              "org.freedesktop.UPower"
+                              "EnumerateDevices"
+                 ) { methodCallDestination = Just "org.freedesktop.UPower" }
 
-    <&!> \reply → let
-           objPaths = [ y | Just x ← fromVariant <$> methodReturnBody reply
-                          , y ← (x ∷ [ObjectPath]) ]
+      <&!> \reply → let
+             objPaths = [ y | Just x ← fromVariant <$> methodReturnBody reply
+                            , y ← (x ∷ [ObjectPath]) ]
 
-           -- …/battery_BAT0
-           parser = ()
-             <$ Parsec.manyTill' Parsec.anyChar "/battery_BAT"
-             <* (Parsec.decimal ∷ Parsec.Parser Word8)
-             <* Parsec.endOfInput
+             -- …/battery_BAT0
+             parser = ()
+               <$ Parsec.manyTill' Parsec.anyChar "/battery_BAT"
+               <* (Parsec.decimal ∷ Parsec.Parser Word8)
+               <* Parsec.endOfInput
 
-           batteryObjPath = find ( isRight
-                                 ∘ Parsec.parseOnly parser
-                                 ∘ fromString
-                                 ∘ formatObjectPath
-                                 ) objPaths ∷ Maybe ObjectPath
+             batteryObjPath = find ( isRight
+                                   ∘ Parsec.parseOnly parser
+                                   ∘ fromString
+                                   ∘ formatObjectPath
+                                   ) objPaths ∷ Maybe ObjectPath
 
-           in batteryObjPath <&!> \x →
-                (,) <$> getPropCall client x "Percentage"
-                    <*> getPropCall client x "State"
+             in batteryObjPath
+
+  case batteryObjPath of
+       Nothing → pure Nothing
+       Just !x → do
+         unsubscriber ← removeMatch client <$> catchUpdate client x
+         chargeLeft   ← getPropCall client x "Percentage"
+         chargeState  ← getPropCall client x "State"
+         pure $ Just ((chargeLeft, chargeState), unsubscriber)
 
   where
     -- Method call to gets a property of a battery device
@@ -416,3 +429,31 @@ setUpBatteryIndicator = do
             , methodCallBody =
                 toVariant <$> ["org.freedesktop.UPower.Device", propName]
             }
+
+    catchUpdate ∷ Client → ObjectPath → IO SignalHandler
+    catchUpdate client betteryObj = addMatch client rule $ handler ∘ signalBody
+      where
+        propsToWatch = ["Percentage", "State"] ∷ [String]
+
+        handler [ fromVariant → Just ("org.freedesktop.UPower.Device" ∷ String)
+
+                , fromVariant →
+                    Just props@(Map.keys → any (∈ propsToWatch) → True)
+                      ∷ Maybe (Map.Map String Variant)
+
+                , fromVariant → Just (_ ∷ [Variant])
+                ]
+                = updateHandler
+                    ( fromVariant =<< Map.lookup "Percentage" props
+                    , fromVariant =<< Map.lookup "State"      props
+                    )
+
+        handler x =
+          error [qms| Unexpected UPower property changed signal body: {x} |]
+
+        rule
+          = matchAny
+          { matchPath      = Just betteryObj
+          , matchInterface = Just "org.freedesktop.DBus.Properties"
+          , matchMember    = Just "PropertiesChanged"
+          }

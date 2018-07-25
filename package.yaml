@@ -13,6 +13,7 @@ dependencies:
   - base
   - base-unicode-symbols
   - bytestring
+  - containers
   - data-default
   - dbus
   - directory
