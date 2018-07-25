@@ -298,7 +298,7 @@ main = do
     put $ Just $ \s → s { lastTime = Just (utc, timeZone) }
     threadDelay $ ceiling $ secondsLeftToNextMinute × 1000 × 1000
 
-  -- TODO description
+  -- Fetching battery state thread (optional)
   case snd <$> batteryData of
        Nothing → pure ()
        Just getNextState →
