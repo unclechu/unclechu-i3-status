@@ -10,14 +10,19 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Main (main) where
 
 import "data-default" Data.Default (def)
 import "base"         Data.Bool (bool)
+import "base"         Data.Word (Word8)
+import "base"         Data.String (fromString)
 import "base"         Data.Tuple (swap)
 import "base"         Data.Fixed (Pico)
 import "base"         Data.Maybe (fromMaybe)
+import "base"         Data.Either (isRight)
+import "base"         Data.Foldable (find)
 import "aeson"        Data.Aeson (encode, decodeStrict)
 import "time"         Data.Time.Clock (UTCTime)
 import "bytestring"   Data.ByteString.Char8 (hGetLine, uncons)
@@ -38,20 +43,20 @@ import "time"         Data.Time.LocalTime
 
 import "qm-interpolated-string" Text.InterpolatedString.QM (qms)
 
-import "base" Control.Monad (when, forever)
+import "base" Control.Monad (when, forever, void)
 import "base" Control.Concurrent (forkIO, threadDelay)
 import "base" Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
 
-import "base"    System.IO (stdin)
-import "base"    System.Exit (die, exitSuccess)
+import "base" System.IO (stdin)
+import "base" System.Exit (die, exitSuccess)
 
-import "unix"    System.Posix.Signals ( installHandler
-                                      , Handler (Catch)
-                                      , sigHUP
-                                      , sigINT
-                                      , sigTERM
-                                      , sigPIPE
-                                      )
+import "unix" System.Posix.Signals ( installHandler
+                                   , Handler (Catch)
+                                   , sigHUP
+                                   , sigINT
+                                   , sigTERM
+                                   , sigPIPE
+                                   )
 
 import "X11"  Graphics.X11.Types ( xK_Num_Lock
                                  , xK_Caps_Lock
@@ -62,13 +67,20 @@ import "X11"  Graphics.X11.Types ( xK_Num_Lock
 import "X11"  Graphics.X11.Xlib (openDisplay, closeDisplay)
 
 import "dbus" DBus ( Signal (signalBody, signalSender, signalDestination)
-                   , IsVariant (fromVariant)
-                   , Type (TypeBoolean, TypeWord8)
-                   , variantType
                    , signal
+                   , IsVariant (fromVariant, toVariant)
+                   , variantType
+                   , Type (TypeBoolean, TypeWord8)
+                   , MethodCall (methodCallDestination, methodCallBody)
+                   , methodCall
+                   , MethodReturn (methodReturnBody)
+                   , ObjectPath
+                   , formatObjectPath
                    )
 
-import "dbus" DBus.Client ( connectSession
+import "dbus" DBus.Client ( Client
+                          , connectSession
+                          , connectSystem
                           , disconnect
                           , requestName
                           , releaseName
@@ -76,6 +88,7 @@ import "dbus" DBus.Client ( connectSession
                           , addMatch
                           , removeMatch
                           , matchAny
+                          , call_
                           , emit
                           , MatchRule ( matchPath
                                       , matchSender
@@ -84,6 +97,8 @@ import "dbus" DBus.Client ( connectSession
                                       , matchMember
                                       )
                           )
+
+import qualified "attoparsec" Data.Attoparsec.ByteString.Char8 as Parsec
 
 -- local imports
 
@@ -96,18 +111,20 @@ import Types ( State (..)
              , ClickEvent (..)
              , XmonadrcIfaceParams (..)
              , XlibKeysHackIfaceParams (..)
+             , UPowerBatteryState (..)
              )
 
 
 view ∷ State → ByteString
-view s = encode [ numLockView
-                , capsLockView
-                , alternativeView
-                , _separate
-                , kbdLayoutView
-                , _separate
-                , dateAndTimeView
-                ]
+view s = encode $
+  [ numLockView
+  , capsLockView
+  , alternativeView
+  , _separate
+  , kbdLayoutView
+  , _separate
+  , dateAndTimeView
+  ] ◇ maybe mempty (\x → [_separate, batteryView x]) (battery s)
 
   where numLockView, capsLockView, alternativeView, kbdLayoutView ∷ Unit
         dateAndTimeView, _separate ∷ Unit
@@ -145,6 +162,30 @@ view s = encode [ numLockView
           where render = renderDate ∘ uncurry utcToZonedTime ∘ swap
                 set x  = def { fullText = x, name = Just "datentime" }
 
+        batteryView (chargeLeft, batteryState) = def
+          { -- Rounding because floating point is always zero
+            fullText = icon ◇ show (round chargeLeft ∷ Word8) ◇ "%"
+
+          , name     = Just "battery"
+
+          , color    = Just
+                     $ case batteryState of
+                            Charging     → connectedToAdapterColor
+                            FullyCharged → connectedToAdapterColor
+                            _ | chargeLeft ≥ 80 → "#00ff00"
+                              | chargeLeft < 20 → "#ff0000"
+                              | otherwise       → "#ffff00"
+
+          } where connectedToAdapterColor = "#00ffff"
+                  dischargingIcon = "🔋"
+                  chargingIcon    = "⚡"
+
+                  icon = case batteryState of
+                              Charging     → chargingIcon
+                              FullyCharged → chargingIcon
+                              _            → dischargingIcon
+
+
         _separate = def { fullText = "/", color = Just "#666666" }
         -- separateAfter x = x { separator           = Just True
         --                     , separatorBlockWidth = Just 20
@@ -174,9 +215,9 @@ handleClickEvent tglAlt ((\x → name (x ∷ ClickEvent)) → Just x) = case x o
                     let reducer s acc = (xK_Shift_L, s) : (xK_Shift_R, s) : acc
                      in foldr reducer [] [False, True, False]
 
-  _             → return ()
+  _             → pure ()
 
-handleClickEvent _ _ = return ()
+handleClickEvent _ _ = pure ()
 
 
 main ∷ IO ()
@@ -190,6 +231,11 @@ main = do
   dpyView ← do dpy    ← openDisplay ""
                let !x = getDisplayName dpy
                x <$ closeDisplay dpy
+
+  !batteryData ←
+    setUpBatteryIndicator >>=
+      \case Nothing     → pure Nothing
+            Just getter → getter <&!> Just ∘ (,getter)
 
   -- Grab the bus name for our service
   requestName client (busName (def ∷ XmonadrcIfaceParams) dpyView) []
@@ -232,10 +278,10 @@ main = do
         handle stateModifier (signalBody → [x]) = case variantType x of
           TypeBoolean → put $ Just $ stateModifier x
           TypeWord8   → put $ Just $ stateModifier x
-          _           → return () -- Incorrect arguments, just ignoring it
+          _           → pure () -- Incorrect arguments, just ignoring it
 
         -- Incorrect arguments, just ignoring it
-        handle _ _ = return ()
+        handle _ _ = pure ()
 
      in mapM listen
 
@@ -251,6 +297,15 @@ main = do
     (secondsLeftToNextMinute, utc, timeZone) ← fetchDateAndTime
     put $ Just $ \s → s { lastTime = Just (utc, timeZone) }
     threadDelay $ ceiling $ secondsLeftToNextMinute × 1000 × 1000
+
+  -- TODO description
+  case snd <$> batteryData of
+       Nothing → pure ()
+       Just getNextState →
+         void $ forkIO $ forever $ do
+           x@(!_, !_) ← getNextState
+           put $ Just $ \s → s { battery = Just x }
+           threadDelay $ 5 × 1000 × 1000
 
   let handleEv = handleClickEvent $
         emit client ( signal (objPath (def ∷ XlibKeysHackIfaceParams))
@@ -298,9 +353,66 @@ main = do
       handle prevState (Just stateModifier) =
         let newState = stateModifier prevState
          in if newState ≡ prevState
-               then return prevState
+               then pure prevState
                else newState <$ echo ("," `append` view newState)
 
       next s = takeMVar mVar >>= handle s >>= next
 
-   in () <$ echo (view def) >> next def
+      defState = case fst <$> batteryData of
+                      Nothing → def
+                      x       → def { battery = x }
+
+   in () <$ echo (view defState) >> next defState
+
+
+type UPowerPropName = String
+
+setUpBatteryIndicator ∷ IO (Maybe (IO (Double, UPowerBatteryState)))
+setUpBatteryIndicator = do
+  client ← connectSystem
+
+  call_ client ( methodCall "/org/freedesktop/UPower"
+                            "org.freedesktop.UPower"
+                            "EnumerateDevices"
+               ) { methodCallDestination = Just "org.freedesktop.UPower" }
+
+    <&!> \reply → let
+           objPaths = [ y | Just x ← fromVariant <$> methodReturnBody reply
+                          , y ← (x ∷ [ObjectPath]) ]
+
+           -- …/battery_BAT0
+           parser = ()
+             <$ Parsec.manyTill' Parsec.anyChar "/battery_BAT"
+             <* (Parsec.decimal ∷ Parsec.Parser Word8)
+             <* Parsec.endOfInput
+
+           batteryObjPath = find ( isRight
+                                 ∘ Parsec.parseOnly parser
+                                 ∘ fromString
+                                 ∘ formatObjectPath
+                                 ) objPaths ∷ Maybe ObjectPath
+
+           in batteryObjPath <&!> \x →
+                (,) <$> getPropCall client x "Percentage"
+                    <*> getPropCall client x "State"
+
+  where
+    -- Method call to gets a property of a battery device
+    getPropCall ∷ IsVariant α ⇒ Client → ObjectPath → UPowerPropName → IO α
+    getPropCall client batteryObjPath propName =
+      call_ client propCall <&!> \reply →
+        case methodReturnBody reply of
+
+             [x] → case fromVariant x >>= fromVariant of
+                        Nothing → error [qms| Unexpected UPower reply: {x} |]
+                        Just y  → y
+
+             x   → error [qms| Unexpected UPower reply: {x} |]
+
+      where
+        propCall =
+          (methodCall batteryObjPath "org.freedesktop.DBus.Properties" "Get")
+            { methodCallDestination = Just "org.freedesktop.UPower"
+            , methodCallBody =
+                toVariant <$> ["org.freedesktop.UPower.Device", propName]
+            }

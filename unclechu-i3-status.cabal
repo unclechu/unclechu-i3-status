@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 473f204a8bda555733ba1ec2e723b1631a53436a68eeda1babc1c3920e849142
+-- hash: 778aa64b9b62f03f87f417c3540521230a4aa08c0186e5faf877d90771c68154
 
 name:           unclechu-i3-status
 version:        0.0.0
@@ -25,6 +25,7 @@ library
   build-depends:
       X11
     , aeson
+    , attoparsec
     , base
     , base-unicode-symbols
     , bytestring
@@ -55,6 +56,7 @@ executable unclechu-i3-status
   build-depends:
       X11
     , aeson
+    , attoparsec
     , base
     , base-unicode-symbols
     , bytestring

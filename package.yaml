@@ -9,6 +9,7 @@ category:     System
 
 dependencies:
   - aeson
+  - attoparsec
   - base
   - base-unicode-symbols
   - bytestring

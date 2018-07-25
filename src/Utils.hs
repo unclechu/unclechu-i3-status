@@ -2,7 +2,7 @@
 {-# LANGUAGE PackageImports #-}
 
 module Utils
-     ( (×), (◇), (<&>)
+     ( (×), (◇), (<&>), (<&!>)
      , module Prelude.Unicode
      , module Data.Function
      , echo
@@ -21,6 +21,8 @@ import "time" Data.Time.Format ( FormatTime
                                , formatTime
                                , defaultTimeLocale
                                )
+
+import "base" Control.Monad ((<$!>))
 
 import "base" System.IO (stdout, hFlush)
 
@@ -45,6 +47,11 @@ import "X11" Graphics.X11.Xlib (Display, displayString)
 (<&>) = flip (<$>)
 {-# INLINE (<&>) #-}
 infixl 1 <&>
+
+(<&!>) ∷ Monad φ ⇒ φ α → (α → β) → φ β
+(<&!>) = flip (<$!>)
+{-# INLINE (<&!>) #-}
+infixl 1 <&!>
 
 
 echo ∷ ByteString → IO ()

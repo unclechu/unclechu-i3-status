@@ -7,6 +7,7 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Types
      ( State (..)
@@ -15,6 +16,7 @@ module Types
      , ClickEvent (..)
      , XmonadrcIfaceParams (..)
      , XlibKeysHackIfaceParams (..)
+     , UPowerBatteryState (..)
      ) where
 
 import "base" GHC.Generics (Generic)
@@ -31,8 +33,8 @@ import "aeson"        Data.Aeson ( ToJSON (toJSON)
                                  , genericParseJSON
                                  )
 
-import "dbus" DBus (ObjectPath, BusName, InterfaceName)
 import qualified "dbus" DBus as DBus
+import qualified "dbus" DBus.Internal.Types as DBusInternal
 
 import Utils
 
@@ -47,6 +49,7 @@ data State
                        -- ^ The reason why don't just store ZonedTime here
                        --   is that it doesn't have Eq instance.
                        --   See https://github.com/haskell/time/issues/50
+   , battery     ∷ Maybe (Double, UPowerBatteryState)
    } deriving (Show, Eq)
 
 instance Default State where
@@ -57,6 +60,7 @@ instance Default State where
     , alternative = False
     , kbdLayout   = 0
     , lastTime    = Nothing
+    , battery     = Nothing
     }
 
 
@@ -137,10 +141,10 @@ instance FromJSON ClickEvent where
 
 data XmonadrcIfaceParams
    = XmonadrcIfaceParams
-   { objPath       ∷ ObjectPath
-   , flushObjPath  ∷ String → ObjectPath
-   , busName       ∷ String → BusName
-   , interfaceName ∷ InterfaceName
+   { objPath       ∷ DBus.ObjectPath
+   , flushObjPath  ∷ String → DBus.ObjectPath
+   , busName       ∷ String → DBus.BusName
+   , interfaceName ∷ DBus.InterfaceName
    }
 
 instance Default XmonadrcIfaceParams where
@@ -155,9 +159,9 @@ instance Default XmonadrcIfaceParams where
 
 data XlibKeysHackIfaceParams
    = XlibKeysHackIfaceParams
-   { objPath       ∷ ObjectPath
-   , busName       ∷ String → BusName
-   , interfaceName ∷ InterfaceName
+   { objPath       ∷ DBus.ObjectPath
+   , busName       ∷ String → DBus.BusName
+   , interfaceName ∷ DBus.InterfaceName
    }
 
 instance Default XlibKeysHackIfaceParams where
@@ -167,6 +171,49 @@ instance Default XlibKeysHackIfaceParams where
     , busName       = DBus.busName_ ∘ ("com.github.unclechu.xlib_keys_hack." ◇)
     , interfaceName = "com.github.unclechu.xlib_keys_hack"
     }
+
+
+data UPowerBatteryState
+   = Unknown
+   | Charging
+   | Discharging
+   | Empty
+   | FullyCharged
+   | PendingCharge
+   | PendingDischarge
+     deriving (Eq, Show)
+
+instance Enum UPowerBatteryState where
+  toEnum = \case
+    1 → Charging
+    2 → Discharging
+    3 → Empty
+    4 → FullyCharged
+    5 → PendingCharge
+    6 → PendingDischarge
+    _ → Unknown
+
+  fromEnum = \case
+    Unknown          → 0
+    Charging         → 1
+    Discharging      → 2
+    Empty            → 3
+    FullyCharged     → 4
+    PendingCharge    → 5
+    PendingDischarge → 6
+
+instance DBus.IsVariant UPowerBatteryState where
+  toVariant
+    = DBusInternal.Variant
+    ∘ DBusInternal.ValueAtom
+    ∘ DBusInternal.AtomWord32
+    ∘ fromIntegral
+    ∘ fromEnum
+
+  fromVariant ( DBusInternal.Variant
+              ( DBusInternal.ValueAtom
+              ( DBusInternal.AtomWord32 x ))) = Just $ toEnum $ fromIntegral x
+  fromVariant _ = Nothing
 
 
 withFieldNamer ∷ (String → String) → Options
