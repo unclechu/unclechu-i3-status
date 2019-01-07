@@ -3,12 +3,13 @@
 
 {-# LANGUAGE PackageImports, UnicodeSyntax, LambdaCase, TupleSections #-}
 {-# LANGUAGE OverloadedStrings, QuasiQuotes #-}
+{-# LANGUAGE BangPatterns, ViewPatterns #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Main (main) where
+
+import                Prelude hiding (getLine)
 
 import "data-default" Data.Default (def)
 import "base"         Data.Bool (bool)
@@ -17,7 +18,7 @@ import "base"         Data.Tuple (swap)
 import "base"         Data.Fixed (Pico)
 import "base"         Data.Maybe (fromMaybe)
 import "aeson"        Data.Aeson (encode, decodeStrict)
-import "bytestring"   Data.ByteString.Char8 (hGetLine, uncons)
+import "bytestring"   Data.ByteString.Char8 (getLine, uncons)
 import "bytestring"   Data.ByteString.Lazy.Char8 (ByteString, append)
 import "time"         Data.Time.Clock (UTCTime)
 
@@ -40,7 +41,6 @@ import "base" Control.Monad (when, forever)
 import "base" Control.Concurrent (forkIO, threadDelay)
 import "base" Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
 
-import "base" System.IO (stdin)
 import "base" System.Exit (die, exitSuccess)
 
 import "unix" System.Posix.Signals ( installHandler
@@ -141,7 +141,7 @@ view s = encode $
           | otherwise = def { fullText = "%ERROR%", color = Just "#ff0000" }
 
         dateAndTimeView =
-          fromMaybe def { fullText = "…" } $ set ∘ render <$> lastTime s
+          maybe def { fullText = "…" } (set ∘ render) $ lastTime s
           where render = renderDate ∘ uncurry utcToZonedTime ∘ swap
                 set x  = def { fullText = x, name = Just "datentime" }
 
@@ -180,14 +180,14 @@ fetchDateAndTime = getZonedTime <&> \zt →
 
   let utc      = zonedTimeToUTC zt
       timeZone = zonedTimeZone  zt
-      seconds  = todSec $ localTimeOfDay $ zonedTimeToLocalTime $ zt
+      seconds  = todSec $ localTimeOfDay $ zonedTimeToLocalTime zt
       secsLeft = 60 - seconds -- left to next minute
 
    in (secsLeft, utc, timeZone)
 
 
 handleClickEvent ∷ IO () → ClickEvent → IO ()
-handleClickEvent tglAlt ((\x → name (x ∷ ClickEvent)) → Just x) = case x of
+handleClickEvent tglAlt (\x → name (x ∷ ClickEvent) → Just x) = case x of
 
   "numlock"     → fakeKeyEvent $ map (xK_Num_Lock,)  [False, True, False]
   "capslock"    → fakeKeyEvent $ map (xK_Caps_Lock,) [False, True, False]
@@ -302,16 +302,16 @@ main = do
 
   -- Reading click events from i3-bar
   _ ← forkIO $ do
-    !"[" ← hGetLine stdin -- Opening of lazy list
+    "[" ← getLine -- Opening of lazy list
     do -- First one (without comma)
-      Just ev ← decodeStrict <$> hGetLine stdin
+      Just ev ← decodeStrict <$> getLine
       handleEv ev
     forever $ do
-      Just ev ← (\(uncons → Just (',', x)) → decodeStrict x) <$> hGetLine stdin
+      Just ev ← getLine <&> \(uncons → Just (',', x)) → decodeStrict x
       handleEv ev
 
   -- Handle POSIX signals to terminate application
-  let terminate = do fromMaybe (pure ()) $ snd <$> batteryData -- unsubscribe
+  let terminate = do maybe (pure ()) snd batteryData -- unsubscribe
                      mapM_ (removeMatch client) sigHandlers
                      _ ← releaseName client
                        $ busName (def ∷ XmonadrcIfaceParams) dpyView

@@ -10,11 +10,12 @@ module Utils
      , spawnProc
      ) where
 
+import Prelude hiding (putStrLn)
 import "base-unicode-symbols" Prelude.Unicode
 
 import "base" Data.Function ((&))
 import "base" Data.Monoid ((<>))
-import "bytestring" Data.ByteString.Lazy.Char8 (ByteString, hPutStrLn)
+import "bytestring" Data.ByteString.Lazy.Char8 (ByteString, putStrLn)
 
 import "time" Data.Time.Format ( FormatTime
                                , formatTime
@@ -54,7 +55,7 @@ infixl 1 <&!>
 
 
 echo ∷ ByteString → IO ()
-echo s = hPutStrLn stdout s >> hFlush stdout
+echo s = putStrLn s >> hFlush stdout
 
 renderDate ∷ FormatTime t ⇒ t → String
 renderDate = formatTime defaultTimeLocale dateFormat
