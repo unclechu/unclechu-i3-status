@@ -1,16 +1,12 @@
 -- Author: Viacheslav Lotsmanov
 -- License: GPLv3 https://raw.githubusercontent.com/unclechu/unclechu-i3-status/master/LICENSE
 
-{-# LANGUAGE UnicodeSyntax #-}
-{-# LANGUAGE PackageImports #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE PackageImports, UnicodeSyntax, LambdaCase, TupleSections #-}
+{-# LANGUAGE OverloadedStrings, QuasiQuotes #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Main (main) where
 

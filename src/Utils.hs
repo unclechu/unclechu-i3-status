@@ -1,5 +1,4 @@
-{-# LANGUAGE UnicodeSyntax #-}
-{-# LANGUAGE PackageImports #-}
+{-# LANGUAGE UnicodeSyntax, PackageImports #-}
 
 module Utils
      ( (×), (◇), (<&>), (<&!>)

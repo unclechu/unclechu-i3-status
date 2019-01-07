@@ -1,9 +1,8 @@
 -- Author: Viacheslav Lotsmanov
 -- License: GPLv3 https://raw.githubusercontent.com/unclechu/unclechu-i3-status/master/LICENSE
 
-{-# LANGUAGE UnicodeSyntax, PackageImports #-}
+{-# LANGUAGE UnicodeSyntax, PackageImports, TupleSections #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
-{-# LANGUAGE TupleSections #-}
 
 module X
      ( initThreads

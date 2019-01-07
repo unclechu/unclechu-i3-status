@@ -1,13 +1,10 @@
 -- Author: Viacheslav Lotsmanov
 -- License: GPLv3 https://raw.githubusercontent.com/unclechu/unclechu-i3-status/master/LICENSE
 
-{-# LANGUAGE UnicodeSyntax #-}
-{-# LANGUAGE PackageImports #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE UnicodeSyntax, PackageImports, LambdaCase #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Types
      ( State (..)
