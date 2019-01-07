@@ -1,10 +1,8 @@
 -- Author: Viacheslav Lotsmanov
 -- License: GPLv3 https://raw.githubusercontent.com/unclechu/unclechu-i3-status/master/LICENSE
 
-{-# LANGUAGE UnicodeSyntax #-}
-{-# LANGUAGE PackageImports #-}
+{-# LANGUAGE UnicodeSyntax, PackageImports #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE TupleSections #-}
 
 module X
@@ -38,7 +36,7 @@ foreign import ccall unsafe "X11/Xlib.h XInitThreads"
 
 
 initThreads ∷ IO ()
-initThreads = do !True ← (≢ 0) <$> xInitThreads; pure ()
+initThreads = do True ← (≢ 0) <$> xInitThreads; pure ()
 
 
 fakeKeyEvent ∷ [(KeySym, Bool)] → IO ()
@@ -46,7 +44,7 @@ fakeKeyEvent keySyms = void $ forkIO $ do
   dpy ← openDisplay ""
 
   let keyCodes = forM keySyms $ \(k, s) → (, s) ∘ test <$> keysymToKeycode dpy k
-      test     = (\(x, !True) → x) ∘ (\x → (x, x ≢ 0))
+      test     = (\(x, True) → x) ∘ (\x → (x, x ≢ 0))
       trig k s = xFakeKeyEvent dpy k s 0 >> sync dpy False
    in keyCodes >>= mapM_ (uncurry trig)
 

@@ -33,7 +33,7 @@ import "aeson"        Data.Aeson ( ToJSON (toJSON)
                                  , genericParseJSON
                                  )
 
-import qualified "dbus" DBus as DBus
+import qualified "dbus" DBus
 import qualified "dbus" DBus.Internal.Types as DBusInternal
 
 import Utils

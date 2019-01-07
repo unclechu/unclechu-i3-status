@@ -63,7 +63,7 @@ renderDate = formatTime defaultTimeLocale dateFormat
         dateFormat = "%A %-d %B %H:%M"
 
 getDisplayName ∷ Display → String
-getDisplayName dpy = fmap f $ displayString dpy
+getDisplayName dpy = f <$> displayString dpy
   where f ':' = '_'
         f '.' = '_'
         f  x  =  x
