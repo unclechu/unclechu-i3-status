@@ -1,11 +1,8 @@
-resolver: lts-11.18
+resolver: lts-13.2 # ghc-8.6.3
 system-ghc: false
 
 packages:
   - '.'
 
 extra-deps:
-  - hsc2hs-0.68.2
-
-flags: {}
-extra-package-dbs: []
+  - hsc2hs-0.68.4
