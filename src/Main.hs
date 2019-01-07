@@ -13,12 +13,9 @@ module Main (main) where
 import "data-default" Data.Default (def)
 import "base"         Data.Bool (bool)
 import "base"         Data.Word (Word8)
-import "base"         Data.String (fromString)
 import "base"         Data.Tuple (swap)
 import "base"         Data.Fixed (Pico)
 import "base"         Data.Maybe (fromMaybe)
-import "base"         Data.Either (isRight)
-import "base"         Data.Foldable (find)
 import "aeson"        Data.Aeson (encode, decodeStrict)
 import "bytestring"   Data.ByteString.Char8 (hGetLine, uncons)
 import "bytestring"   Data.ByteString.Lazy.Char8 (ByteString, append)
@@ -36,8 +33,6 @@ import "time"         Data.Time.LocalTime
                         , zonedTimeToUTC
                         , utcToZonedTime
                         )
-
-import qualified "containers" Data.Map.Strict as Map
 
 import "qm-interpolated-string" Text.InterpolatedString.QM (qms)
 
@@ -66,20 +61,12 @@ import "X11"  Graphics.X11.Xlib (openDisplay, closeDisplay)
 
 import "dbus" DBus ( Signal (signalBody, signalSender, signalDestination)
                    , signal
-                   , Variant
-                   , IsVariant (fromVariant, toVariant)
+                   , IsVariant (fromVariant)
                    , variantType
                    , Type (TypeBoolean, TypeWord8)
-                   , MethodCall (methodCallDestination, methodCallBody)
-                   , methodCall
-                   , MethodReturn (methodReturnBody)
-                   , ObjectPath
-                   , formatObjectPath
                    )
 
-import "dbus" DBus.Client ( Client
-                          , connectSession
-                          , connectSystem
+import "dbus" DBus.Client ( connectSession
                           , disconnect
                           , requestName
                           , releaseName
@@ -87,9 +74,7 @@ import "dbus" DBus.Client ( Client
                           , addMatch
                           , removeMatch
                           , matchAny
-                          , call_
                           , emit
-                          , SignalHandler
                           , MatchRule ( matchPath
                                       , matchDestination
                                       , matchInterface
@@ -97,13 +82,12 @@ import "dbus" DBus.Client ( Client
                                       )
                           )
 
-import qualified "attoparsec" Data.Attoparsec.ByteString.Char8 as Parsec
-
 -- local imports
 
 import Utils
 import X (initThreads, fakeKeyEvent)
 import ParentProc (dieWithParent)
+import Battery (setUpBatteryIndicator)
 import Types ( State (..)
              , ProtocolInitialization (..)
              , Unit (..)
@@ -362,94 +346,3 @@ main = do
                       x       → def { battery = x }
 
    in () <$ echo (view defState) >> next defState
-
-
-type UPowerPropName = String
-
-setUpBatteryIndicator
-  ∷ ((Maybe Double, Maybe UPowerBatteryState) → IO ()) -- Update handler
-  → IO (Maybe ((Double, UPowerBatteryState), IO ())) -- Initial and unsubscriber
-
-setUpBatteryIndicator updateHandler = do
-  client ← connectSystem
-
-  !batteryObjPath ←
-    call_ client ( methodCall "/org/freedesktop/UPower"
-                              "org.freedesktop.UPower"
-                              "EnumerateDevices"
-                 ) { methodCallDestination = Just "org.freedesktop.UPower" }
-
-      <&!> \reply → let
-             objPaths = [ y | Just x ← fromVariant <$> methodReturnBody reply
-                            , y ← (x ∷ [ObjectPath]) ]
-
-             -- …/battery_BAT0
-             parser = ()
-               <$ Parsec.manyTill' Parsec.anyChar "/battery_BAT"
-               <* (Parsec.decimal ∷ Parsec.Parser Word8)
-               <* Parsec.endOfInput
-
-             batteryObjPath = find ( isRight
-                                   ∘ Parsec.parseOnly parser
-                                   ∘ fromString
-                                   ∘ formatObjectPath
-                                   ) objPaths ∷ Maybe ObjectPath
-
-             in batteryObjPath
-
-  case batteryObjPath of
-       Nothing → pure Nothing
-       Just !x → do
-         unsubscriber ← removeMatch client <$> catchUpdate client x
-         chargeLeft   ← getPropCall client x "Percentage"
-         chargeState  ← getPropCall client x "State"
-         pure $ Just ((chargeLeft, chargeState), unsubscriber)
-
-  where
-    -- Method call to gets a property of a battery device
-    getPropCall ∷ IsVariant α ⇒ Client → ObjectPath → UPowerPropName → IO α
-    getPropCall client batteryObjPath propName =
-      call_ client propCall <&!> \reply →
-        case methodReturnBody reply of
-
-             [x] → case fromVariant x >>= fromVariant of
-                        Nothing → error [qms| Unexpected UPower reply: {x} |]
-                        Just y  → y
-
-             x   → error [qms| Unexpected UPower reply: {x} |]
-
-      where
-        propCall =
-          (methodCall batteryObjPath "org.freedesktop.DBus.Properties" "Get")
-            { methodCallDestination = Just "org.freedesktop.UPower"
-            , methodCallBody =
-                toVariant <$> ["org.freedesktop.UPower.Device", propName]
-            }
-
-    catchUpdate ∷ Client → ObjectPath → IO SignalHandler
-    catchUpdate client betteryObj = addMatch client rule $ handler ∘ signalBody
-      where
-        propsToWatch = ["Percentage", "State"] ∷ [String]
-
-        handler [ fromVariant → Just ("org.freedesktop.UPower.Device" ∷ String)
-
-                , fromVariant →
-                    Just props@(Map.keys → any (∈ propsToWatch) → True)
-                      ∷ Maybe (Map.Map String Variant)
-
-                , fromVariant → Just (_ ∷ [Variant])
-                ]
-                = updateHandler
-                    ( fromVariant =<< Map.lookup "Percentage" props
-                    , fromVariant =<< Map.lookup "State"      props
-                    )
-
-        handler x =
-          error [qms| Unexpected UPower property changed signal body: {x} |]
-
-        rule
-          = matchAny
-          { matchPath      = Just betteryObj
-          , matchInterface = Just "org.freedesktop.DBus.Properties"
-          , matchMember    = Just "PropertiesChanged"
-          }
