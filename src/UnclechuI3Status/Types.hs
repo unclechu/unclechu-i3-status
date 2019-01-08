@@ -1,7 +1,7 @@
 -- Author: Viacheslav Lotsmanov
 -- License: GPLv3 https://raw.githubusercontent.com/unclechu/unclechu-i3-status/master/LICENSE
 
-{-# LANGUAGE UnicodeSyntax, PackageImports, LambdaCase #-}
+{-# LANGUAGE UnicodeSyntax, PackageImports, LambdaCase, MultiWayIf #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveGeneric #-}
@@ -17,6 +17,7 @@ module UnclechuI3Status.Types
      , ChangeEvent (..)
      , EventContainer (..)
      , EventContainerWindowProperties (..)
+     , EventWorkspace (..)
      , WindowTree (..)
      ) where
 
@@ -226,14 +227,18 @@ instance DBus.IsVariant UPowerBatteryState where
 
 
 data ChangeEvent
-   = FocusEvent
+   = WindowFocusEvent
    { container ∷ EventContainer
    }
-   | TitleEvent
+   | WindowTitleEvent
    { container ∷ EventContainer
    }
-   | CloseEvent
+   | WindowCloseEvent
    { container ∷ EventContainer
+   }
+   | WorkspaceFocusEvent
+   { current ∷ EventWorkspace
+   , old ∷ Maybe EventWorkspace
    }
    | OtherEvent Value
      deriving (Show, Eq, Generic)
@@ -241,16 +246,25 @@ data ChangeEvent
 instance FromJSON ChangeEvent where
   parseJSON json@(Object obj) =
     case HM.lookup "change" obj of
-         Nothing →  typeMismatch "ChangeEvent" json
-         Just "focus" →
+         Nothing → typeMismatch "ChangeEvent" json
+
+         Just "focus" → do
+           tag ←
+             if | HM.member "container" obj → pure "WindowFocusEvent"
+                | HM.member "current"   obj → pure "WorkspaceFocusEvent"
+                | otherwise                 → typeMismatch "ChangeEvent" json
+
            genericParseJSON defaultOptions $
-             Object $ HM.insert "tag" "FocusEvent" obj
+              Object $ HM.insert "tag" tag obj
+
          Just "title" →
            genericParseJSON defaultOptions $
-             Object $ HM.insert "tag" "TitleEvent" obj
+             Object $ HM.insert "tag" "WindowTitleEvent" obj
+
          Just "close" →
            genericParseJSON defaultOptions $
-             Object $ HM.insert "tag" "CloseEvent" obj
+             Object $ HM.insert "tag" "WindowCloseEvent" obj
+
          Just _ → pure $ OtherEvent json
 
   parseJSON json = typeMismatch "ChangeEvent" json
@@ -259,10 +273,11 @@ instance FromJSON ChangeEvent where
 data EventContainer
    = EventContainer
    { id ∷ Int64
+   , _type ∷ String
    , focused ∷ Bool
+   , urgent ∷ Bool
    , output ∷ String
    , layout ∷ String
-   , urgent ∷ Bool
    , name ∷ String
    , window ∷ Int64
    , windowProperties ∷ EventContainerWindowProperties
@@ -283,6 +298,25 @@ data EventContainerWindowProperties
    } deriving (Show, Eq, Generic)
 
 instance FromJSON EventContainerWindowProperties where
+  parseJSON = genericParseJSON $ withFieldNamer f where
+    f ('_':xs) = xs
+    f x        = x
+
+
+data EventWorkspace
+   = EventWorkspace
+   { id ∷ Int64
+   , _type ∷ String
+   , focused ∷ Bool
+   , urgent ∷ Bool
+   , output ∷ String
+   , layout ∷ String
+   , name ∷ String
+   , nodes ∷ [WindowTree]
+   , sticky ∷ Bool
+   } deriving (Show, Eq, Generic)
+
+instance FromJSON EventWorkspace where
   parseJSON = genericParseJSON $ withFieldNamer f where
     f ('_':xs) = xs
     f x        = x

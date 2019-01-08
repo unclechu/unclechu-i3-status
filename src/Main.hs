@@ -16,7 +16,7 @@ import "base"         Data.Bool (bool)
 import "base"         Data.Word (Word8)
 import "base"         Data.Tuple (swap)
 import "base"         Data.Fixed (Pico)
-import "base"         Data.Maybe (fromMaybe)
+import "base"         Data.Maybe (fromMaybe, listToMaybe, catMaybes)
 import "aeson"        Data.Aeson (encode, decodeStrict)
 import "bytestring"   Data.ByteString.Char8 (getLine, uncons)
 import "bytestring"   Data.ByteString.Lazy.Char8 (ByteString, append)
@@ -100,6 +100,8 @@ import UnclechuI3Status.Types ( State (..)
                               , ChangeEvent (..)
                               , EventContainer (..)
                               , EventContainerWindowProperties (..)
+                              , EventWorkspace (..)
+                              , WindowTree (..)
                               )
 
 
@@ -308,17 +310,32 @@ main = do
       hFlush stderr
       put $ Just $ \s → s { windowTitle = Nothing }
     Right ev → case ev of
-      FocusEvent { container } →
-        when (focused container) $
+      WindowFocusEvent { container } →
+        when (focused (container ∷ EventContainer)) $
           put $ Just $ \s → s
-            { windowTitle = Just $ container & windowProperties & title }
-      TitleEvent { container } →
-        when (focused container) $
+            { windowTitle = Just $
+                title $ windowProperties (container ∷ EventContainer)
+            }
+      WindowTitleEvent { container } →
+        when (focused (container ∷ EventContainer)) $
           put $ Just $ \s → s
-            { windowTitle = Just $ container & windowProperties & title }
-      CloseEvent { container } →
-        when (focused container) $
+            { windowTitle = Just $
+                title $ windowProperties (container ∷ EventContainer)
+            }
+      WindowCloseEvent { container } →
+        when (focused (container ∷ EventContainer)) $
           put $ Just $ \s → s { windowTitle = Nothing }
+
+      WorkspaceFocusEvent { current } →
+        when (focused (current ∷ EventWorkspace)) $ let
+         f x@WindowTree { focused = True } = Just x
+         f WindowTree { nodes } = listToMaybe $ catMaybes $ f <$> nodes
+
+         top = listToMaybe $ catMaybes $ f <$> nodes (current ∷ EventWorkspace)
+         t = top >>= \x → title <$> windowProperties (x ∷ WindowTree)
+
+         in put $ Just $ \s → s { windowTitle = t }
+
       OtherEvent _ → pure ()
 
   let handleEv = handleClickEvent $

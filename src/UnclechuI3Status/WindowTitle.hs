@@ -62,7 +62,7 @@ setUpWindowTitle updateHandler = do
            in f tree >>= (\x → windowProperties (x ∷ WindowTree)) <&> title
 
   (Nothing, Just hOut, _, procHandle) ←
-    let args = ["-t", "subscribe", "-m", [qn| ["window"] |]]
+    let args = ["-t", "subscribe", "-m", [qn| ["window", "workspace"] |]]
      in createProcess (proc "i3-msg" args)
           { std_in  = NoStream
           , std_out = CreatePipe
