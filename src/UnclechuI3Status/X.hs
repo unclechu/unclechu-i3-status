@@ -4,7 +4,7 @@
 {-# LANGUAGE UnicodeSyntax, PackageImports, TupleSections #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
 
-module X
+module UnclechuI3Status.X
      ( initThreads
      , fakeKeyEvent
      ) where
@@ -24,7 +24,7 @@ import "X11"  Graphics.X11.Xlib ( Display (Display)
                                 , sync
                                 )
 
-import Utils
+import UnclechuI3Status.Utils
 
 
 foreign import ccall unsafe "X11/extensions/XTest.h XTestFakeKeyEvent"

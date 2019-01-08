@@ -5,7 +5,7 @@
 {-# LANGUAGE OverloadedStrings, QuasiQuotes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Battery
+module UnclechuI3Status.Battery
      ( setUpBatteryIndicator
      ) where
 
@@ -42,8 +42,8 @@ import "dbus" DBus.Client ( Client
 
 -- local imports
 
-import Utils
-import Types (UPowerBatteryState (..))
+import UnclechuI3Status.Utils
+import UnclechuI3Status.Types (UPowerBatteryState (..))
 
 
 type UPowerPropName = String

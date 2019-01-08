@@ -1,6 +1,6 @@
 {-# LANGUAGE UnicodeSyntax, PackageImports #-}
 
-module Utils
+module UnclechuI3Status.Utils
      ( (×), (◇), (<&>), (<&!>)
      , module Prelude.Unicode
      , module Data.Function

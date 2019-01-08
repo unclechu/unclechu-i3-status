@@ -4,7 +4,7 @@
 {-# LANGUAGE UnicodeSyntax, PackageImports #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
 
-module ParentProc (dieWithParent) where
+module UnclechuI3Status.ParentProc (dieWithParent) where
 
 import qualified "base" Foreign.C.Types as CTypes
 

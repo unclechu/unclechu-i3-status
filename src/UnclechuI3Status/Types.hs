@@ -6,7 +6,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveGeneric #-}
 
-module Types
+module UnclechuI3Status.Types
      ( State (..)
      , ProtocolInitialization (..)
      , Unit (..)
@@ -33,7 +33,7 @@ import "aeson"        Data.Aeson ( ToJSON (toJSON)
 import qualified "dbus" DBus
 import qualified "dbus" DBus.Internal.Types as DBusInternal
 
-import Utils
+import UnclechuI3Status.Utils
 
 
 data State

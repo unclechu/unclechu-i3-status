@@ -84,18 +84,18 @@ import "dbus" DBus.Client ( connectSession
 
 -- local imports
 
-import Utils
-import X (initThreads, fakeKeyEvent)
-import ParentProc (dieWithParent)
-import Battery (setUpBatteryIndicator)
-import Types ( State (..)
-             , ProtocolInitialization (..)
-             , Unit (..)
-             , ClickEvent (..)
-             , XmonadrcIfaceParams (..)
-             , XlibKeysHackIfaceParams (..)
-             , UPowerBatteryState (..)
-             )
+import UnclechuI3Status.Utils
+import UnclechuI3Status.X (initThreads, fakeKeyEvent)
+import UnclechuI3Status.ParentProc (dieWithParent)
+import UnclechuI3Status.Battery (setUpBatteryIndicator)
+import UnclechuI3Status.Types ( State (..)
+                              , ProtocolInitialization (..)
+                              , Unit (..)
+                              , ClickEvent (..)
+                              , XmonadrcIfaceParams (..)
+                              , XlibKeysHackIfaceParams (..)
+                              , UPowerBatteryState (..)
+                              )
 
 
 view ∷ State → ByteString
