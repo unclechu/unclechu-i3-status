@@ -2,7 +2,7 @@
 -- License: GPLv3 https://raw.githubusercontent.com/unclechu/unclechu-i3-status/master/LICENSE
 
 {-# LANGUAGE UnicodeSyntax, PackageImports #-}
-{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE DuplicateRecordFields, NamedFieldPuns  #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE QuasiQuotes #-}
 
@@ -13,6 +13,7 @@ module UnclechuI3Status.WindowTitle
 import "aeson" Data.Aeson (eitherDecodeStrict')
 import "bytestring" Data.ByteString (hGetLine, hGetContents)
 import "qm-interpolated-string" Text.InterpolatedString.QM (qn, qm)
+import "base" Data.Maybe (listToMaybe, catMaybes)
 
 import "base" Control.Monad (void, forever)
 import "base" Control.Concurrent (forkIO, killThread)
@@ -56,19 +57,9 @@ setUpWindowTitle updateHandler = do
            hPutStrLn stderr [qm| Error while parsing i3 window tree: {msg} |]
            hFlush stderr
          Right tree → pure $ let
-           f ∷ WindowTree → Maybe WindowTree
-           f x =
-             if focused (x ∷ WindowTree)
-                then Just x
-                else case f <$> nodes x of
-                          [] → Nothing
-                          xs → let
-                            reducer [] = Nothing
-                            reducer (Just y : _) = Just y
-                            reducer (Nothing : ys) = reducer ys
-                            in reducer xs
-
-           in (f tree >>= (\x → windowProperties (x ∷ WindowTree))) <&> title
+           f x@WindowTree { focused = True } = Just x
+           f WindowTree { nodes } = listToMaybe $ catMaybes $ f <$> nodes
+           in f tree >>= (\x → windowProperties (x ∷ WindowTree)) <&> title
 
   (Nothing, Just hOut, _, procHandle) ←
     let args = ["-t", "subscribe", "-m", [qn| ["window"] |]]
@@ -80,6 +71,6 @@ setUpWindowTitle updateHandler = do
 
   cmdReaderThreadId ← forkIO $ forever $ do
     line ← hGetLine hOut
-    void $ forkIO $ updateHandler $ eitherDecodeStrict' line
+    void $ updateHandler $ eitherDecodeStrict' line
 
   pure (initTitle, killThread cmdReaderThreadId >> terminateProcess procHandle)
