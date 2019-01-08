@@ -326,15 +326,15 @@ main = do
         when (focused (container ∷ EventContainer)) $
           put $ Just $ \s → s { windowTitle = Nothing }
 
-      WorkspaceFocusEvent { current } →
-        when (focused (current ∷ EventWorkspace)) $ let
-         f x@WindowTree { focused = True } = Just x
-         f WindowTree { nodes } = listToMaybe $ catMaybes $ f <$> nodes
+      WorkspaceFocusEvent { current } → let
+        f x@WindowTree { focused = True } = Just x
+        f WindowTree { nodes } = firstFocused nodes
 
-         top = listToMaybe $ catMaybes $ f <$> nodes (current ∷ EventWorkspace)
-         t = top >>= \x → title <$> windowProperties (x ∷ WindowTree)
+        firstFocused = listToMaybe ∘ catMaybes ∘ map f
+        top = firstFocused $ nodes (current ∷ EventWorkspace)
+        t = top >>= \x → title <$> windowProperties (x ∷ WindowTree)
 
-         in put $ Just $ \s → s { windowTitle = t }
+        in put $ Just $ \s → s { windowTitle = t }
 
       OtherEvent _ → pure ()
 

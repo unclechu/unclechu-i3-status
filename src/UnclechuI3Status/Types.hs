@@ -255,7 +255,7 @@ instance FromJSON ChangeEvent where
                 | otherwise                 → typeMismatch "ChangeEvent" json
 
            genericParseJSON defaultOptions $
-              Object $ HM.insert "tag" tag obj
+             Object $ HM.insert "tag" tag obj
 
          Just "title" →
            genericParseJSON defaultOptions $
