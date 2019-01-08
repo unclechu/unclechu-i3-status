@@ -316,6 +316,9 @@ main = do
         when (focused container) $
           put $ Just $ \s → s
             { windowTitle = Just $ container & windowProperties & title }
+      CloseEvent { container } →
+        when (focused container) $
+          put $ Just $ \s → s { windowTitle = Nothing }
       OtherEvent _ → pure ()
 
   let handleEv = handleClickEvent $

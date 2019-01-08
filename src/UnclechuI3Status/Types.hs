@@ -232,6 +232,9 @@ data ChangeEvent
    | TitleEvent
    { container ∷ EventContainer
    }
+   | CloseEvent
+   { container ∷ EventContainer
+   }
    | OtherEvent Value
      deriving (Show, Eq, Generic)
 
@@ -245,6 +248,9 @@ instance FromJSON ChangeEvent where
          Just "title" →
            genericParseJSON defaultOptions $
              Object $ HM.insert "tag" "TitleEvent" obj
+         Just "close" →
+           genericParseJSON defaultOptions $
+             Object $ HM.insert "tag" "CloseEvent" obj
          Just _ → pure $ OtherEvent json
 
   parseJSON json = typeMismatch "ChangeEvent" json
