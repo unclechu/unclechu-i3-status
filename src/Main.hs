@@ -106,7 +106,7 @@ import UnclechuI3Status.Types ( State (..)
 view ∷ State → ByteString
 view s
   = encode
-  $ maybe mempty (\x -> [windowTitleView x, _separate]) (windowTitle s)
+  $ maybe mempty (\x → [windowTitleView x, _separate]) (windowTitle s)
   ◇
   [ numLockView
   , capsLockView
@@ -302,21 +302,21 @@ main = do
       put $ Just $ \s → s
         { battery = fst <$> battery s >>= Just ∘ (,chargeState) }
 
-  !windowTitleUnsubscribe ← setUpWindowTitle $ \case
-    Left msg -> do
+  !windowTitleData ← setUpWindowTitle $ \case
+    Left msg → do
       hPutStrLn stderr [qm| Error while parsing window title event: {msg} |]
       hFlush stderr
       put $ Just $ \s → s { windowTitle = Nothing }
-    Right ev -> case ev of
-      FocusEvent { container } ->
+    Right ev → case ev of
+      FocusEvent { container } →
         when (focused container) $
           put $ Just $ \s → s
             { windowTitle = Just $ container & windowProperties & title }
-      TitleEvent { container } ->
+      TitleEvent { container } →
         when (focused container) $
           put $ Just $ \s → s
             { windowTitle = Just $ container & windowProperties & title }
-      OtherEvent _ -> pure ()
+      OtherEvent _ → pure ()
 
   let handleEv = handleClickEvent $
         emit client ( signal (objPath (def ∷ XlibKeysHackIfaceParams))
@@ -341,7 +341,7 @@ main = do
 
   -- Handle POSIX signals to terminate application
   let terminate = do maybe (pure ()) snd batteryData -- unsubscribe
-                     windowTitleUnsubscribe
+                     snd windowTitleData -- unsubscribe
                      mapM_ (removeMatch client) sigHandlers
                      _ ← releaseName client
                        $ busName (def ∷ XmonadrcIfaceParams) dpyView
@@ -371,8 +371,10 @@ main = do
 
       next s = takeMVar mVar >>= handle s >>= next
 
-      defState = case fst <$> batteryData of
-                      Nothing → def
-                      x       → def { battery = x }
+      defState
+        = def
+        { battery     = fst <$> batteryData
+        , windowTitle = fst windowTitleData
+        }
 
    in () <$ echo (view defState) >> next defState

@@ -2,6 +2,8 @@
 -- License: GPLv3 https://raw.githubusercontent.com/unclechu/unclechu-i3-status/master/LICENSE
 
 {-# LANGUAGE UnicodeSyntax, PackageImports #-}
+{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE QuasiQuotes #-}
 
 module UnclechuI3Status.WindowTitle
@@ -9,30 +11,66 @@ module UnclechuI3Status.WindowTitle
      ) where
 
 import "aeson" Data.Aeson (eitherDecodeStrict')
-import "bytestring" Data.ByteString (hGetLine)
-import "qm-interpolated-string" Text.InterpolatedString.QM (qn)
+import "bytestring" Data.ByteString (hGetLine, hGetContents)
+import "qm-interpolated-string" Text.InterpolatedString.QM (qn, qm)
 
 import "base" Control.Monad (void, forever)
 import "base" Control.Concurrent (forkIO, killThread)
+
+import "base" System.IO (stderr, hPutStrLn, hFlush)
 
 import "process" System.Process ( CreateProcess (std_in, std_out, std_err)
                                 , StdStream (NoStream, Inherit, CreatePipe)
                                 , proc
                                 , createProcess
+                                , waitForProcess
                                 , terminateProcess
                                 )
 
 -- local imports
 
+import UnclechuI3Status.Utils
 import UnclechuI3Status.Types
 
 
 setUpWindowTitle
   ∷ (Either String ChangeEvent → IO ()) -- Update handler
-  → IO (IO ()) -- Unsubscriber
+  → IO (Maybe String, IO ()) -- Current focused window title and unsubscriber
 
 setUpWindowTitle updateHandler = do
-  (Nothing, Just hOut, _, procHandle) <-
+  (initialTree ∷ Either String WindowTree) ← do
+    (Nothing, Just hOut, _, procHandle) ←
+      let args = ["-t", "get_tree"]
+       in createProcess (proc "i3-msg" args)
+            { std_in  = NoStream
+            , std_out = CreatePipe
+            , std_err = Inherit
+            }
+
+    result ← eitherDecodeStrict' <$> hGetContents hOut
+    result <$ waitForProcess procHandle
+
+  (initTitle ∷ Maybe String) ←
+    case initialTree of
+         Left msg → Nothing <$ do
+           hPutStrLn stderr [qm| Error while parsing i3 window tree: {msg} |]
+           hFlush stderr
+         Right tree → pure $ let
+           f ∷ WindowTree → Maybe WindowTree
+           f x =
+             if focused (x ∷ WindowTree)
+                then Just x
+                else case f <$> nodes x of
+                          [] → Nothing
+                          xs → let
+                            reducer [] = Nothing
+                            reducer (Just y : _) = Just y
+                            reducer (Nothing : ys) = reducer ys
+                            in reducer xs
+
+           in (f tree >>= (\x → windowProperties (x ∷ WindowTree))) <&> title
+
+  (Nothing, Just hOut, _, procHandle) ←
     let args = ["-t", "subscribe", "-m", [qn| ["window"] |]]
      in createProcess (proc "i3-msg" args)
           { std_in  = NoStream
@@ -40,8 +78,8 @@ setUpWindowTitle updateHandler = do
           , std_err = Inherit
           }
 
-  cmdReaderThreadId <- forkIO $ forever $ do
-    line <- hGetLine hOut
+  cmdReaderThreadId ← forkIO $ forever $ do
+    line ← hGetLine hOut
     void $ forkIO $ updateHandler $ eitherDecodeStrict' line
 
-  pure $ terminateProcess procHandle >> killThread cmdReaderThreadId
+  pure (initTitle, killThread cmdReaderThreadId >> terminateProcess procHandle)

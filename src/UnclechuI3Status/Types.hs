@@ -17,6 +17,7 @@ module UnclechuI3Status.Types
      , ChangeEvent (..)
      , EventContainer (..)
      , EventContainerWindowProperties (..)
+     , WindowTree (..)
      ) where
 
 import "base" GHC.Generics (Generic)
@@ -237,14 +238,14 @@ data ChangeEvent
 instance FromJSON ChangeEvent where
   parseJSON json@(Object obj) =
     case HM.lookup "change" obj of
-         Nothing -> typeMismatch "ChangeEvent" json
-         Just "focus" ->
+         Nothing →  typeMismatch "ChangeEvent" json
+         Just "focus" →
            genericParseJSON defaultOptions $
              Object $ HM.insert "tag" "FocusEvent" obj
-         Just "title" ->
+         Just "title" →
            genericParseJSON defaultOptions $
              Object $ HM.insert "tag" "TitleEvent" obj
-         Just _ -> pure $ OtherEvent json
+         Just _ → pure $ OtherEvent json
 
   parseJSON json = typeMismatch "ChangeEvent" json
 
@@ -272,12 +273,29 @@ data EventContainerWindowProperties
    { _class ∷ String
    , _instance ∷ String
    , title ∷ String
+   , windowRole ∷ Maybe String
    } deriving (Show, Eq, Generic)
 
 instance FromJSON EventContainerWindowProperties where
   parseJSON = genericParseJSON $ withFieldNamer f where
     f ('_':xs) = xs
     f x        = x
+
+
+-- | i3 windows tree
+data WindowTree
+   = WindowTree
+   { id ∷ Int64
+   , focused ∷ Bool
+   , urgent ∷ Bool
+   , layout ∷ String
+   , output ∷ Maybe String
+   , windowProperties ∷ Maybe EventContainerWindowProperties
+   , nodes ∷ [WindowTree]
+   } deriving (Show, Eq, Generic)
+
+instance FromJSON WindowTree where
+  parseJSON = genericParseJSON $ withFieldNamer Prelude.id
 
 
 withFieldNamer ∷ (String → String) → Options
