@@ -14,21 +14,30 @@ module UnclechuI3Status.Types
      , XmonadrcIfaceParams (..)
      , XlibKeysHackIfaceParams (..)
      , UPowerBatteryState (..)
+     , ChangeEvent (..)
+     , EventContainer (..)
+     , EventContainerWindowProperties (..)
      ) where
 
 import "base" GHC.Generics (Generic)
 
+import "base"         Data.Int (Int64)
 import "base"         Data.Word (Word, Word8)
 import "data-default" Data.Default (Default (def))
-import "aeson"        Data.Aeson.Types (Options (fieldLabelModifier), camelTo2)
+import "aeson"        Data.Aeson.Types ( Options (fieldLabelModifier)
+                                       , camelTo2
+                                       , typeMismatch
+                                       )
 import "time"         Data.Time.Clock (UTCTime)
 import "time"         Data.Time.LocalTime (TimeZone)
-import "aeson"        Data.Aeson ( ToJSON (toJSON)
+import "aeson"        Data.Aeson ( Value (Object)
+                                 , ToJSON (toJSON)
                                  , FromJSON (parseJSON)
                                  , defaultOptions
                                  , genericToJSON
                                  , genericParseJSON
                                  )
+import qualified "unordered-containers" Data.HashMap.Strict as HM
 
 import qualified "dbus" DBus
 import qualified "dbus" DBus.Internal.Types as DBusInternal
@@ -47,6 +56,7 @@ data State
                        --   is that it doesn't have Eq instance.
                        --   See https://github.com/haskell/time/issues/50
    , battery     ∷ Maybe (Double, UPowerBatteryState)
+   , windowTitle ∷ Maybe String
    } deriving (Show, Eq)
 
 instance Default State where
@@ -58,6 +68,7 @@ instance Default State where
     , kbdLayout   = 0
     , lastTime    = Nothing
     , battery     = Nothing
+    , windowTitle = Nothing
     }
 
 
@@ -79,7 +90,7 @@ instance Default ProtocolInitialization where
     }
 
 instance ToJSON ProtocolInitialization where
-  toJSON = genericToJSON $ withFieldNamer id
+  toJSON = genericToJSON $ withFieldNamer Prelude.id
 
 
 data Unit
@@ -211,6 +222,62 @@ instance DBus.IsVariant UPowerBatteryState where
               ( DBusInternal.ValueAtom
               ( DBusInternal.AtomWord32 x ))) = Just $ toEnum $ fromIntegral x
   fromVariant _ = Nothing
+
+
+data ChangeEvent
+   = FocusEvent
+   { container ∷ EventContainer
+   }
+   | TitleEvent
+   { container ∷ EventContainer
+   }
+   | OtherEvent Value
+     deriving (Show, Eq, Generic)
+
+instance FromJSON ChangeEvent where
+  parseJSON json@(Object obj) =
+    case HM.lookup "change" obj of
+         Nothing -> typeMismatch "ChangeEvent" json
+         Just "focus" ->
+           genericParseJSON defaultOptions $
+             Object $ HM.insert "tag" "FocusEvent" obj
+         Just "title" ->
+           genericParseJSON defaultOptions $
+             Object $ HM.insert "tag" "TitleEvent" obj
+         Just _ -> pure $ OtherEvent json
+
+  parseJSON json = typeMismatch "ChangeEvent" json
+
+
+data EventContainer
+   = EventContainer
+   { id ∷ Int64
+   , focused ∷ Bool
+   , output ∷ String
+   , layout ∷ String
+   , urgent ∷ Bool
+   , name ∷ String
+   , window ∷ Int64
+   , windowProperties ∷ EventContainerWindowProperties
+   , sticky ∷ Bool
+   } deriving (Show, Eq, Generic)
+
+instance FromJSON EventContainer where
+  parseJSON = genericParseJSON $ withFieldNamer f where
+    f ('_':xs) = xs
+    f x        = x
+
+data EventContainerWindowProperties
+   = EventContainerWindowProperties
+   { _class ∷ String
+   , _instance ∷ String
+   , title ∷ String
+   } deriving (Show, Eq, Generic)
+
+instance FromJSON EventContainerWindowProperties where
+  parseJSON = genericParseJSON $ withFieldNamer f where
+    f ('_':xs) = xs
+    f x        = x
 
 
 withFieldNamer ∷ (String → String) → Options

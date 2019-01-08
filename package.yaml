@@ -22,6 +22,7 @@ dependencies:
   - qm-interpolated-string
   - time
   - unix
+  - unordered-containers
   - X11
 
 ghc-options:

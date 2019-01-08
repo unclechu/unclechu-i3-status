@@ -4,7 +4,7 @@
 {-# LANGUAGE PackageImports, UnicodeSyntax, LambdaCase, TupleSections #-}
 {-# LANGUAGE OverloadedStrings, QuasiQuotes #-}
 {-# LANGUAGE BangPatterns, ViewPatterns #-}
-{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE DuplicateRecordFields, NamedFieldPuns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Main (main) where
@@ -35,12 +35,13 @@ import "time"         Data.Time.LocalTime
                         , utcToZonedTime
                         )
 
-import "qm-interpolated-string" Text.InterpolatedString.QM (qms)
+import "qm-interpolated-string" Text.InterpolatedString.QM (qm, qms)
 
 import "base" Control.Monad (when, forever)
 import "base" Control.Concurrent (forkIO, threadDelay)
 import "base" Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
 
+import "base" System.IO (stderr, hPutStrLn, hFlush)
 import "base" System.Exit (die, exitSuccess)
 
 import "unix" System.Posix.Signals ( installHandler
@@ -88,6 +89,7 @@ import UnclechuI3Status.Utils
 import UnclechuI3Status.X (initThreads, fakeKeyEvent)
 import UnclechuI3Status.ParentProc (dieWithParent)
 import UnclechuI3Status.Battery (setUpBatteryIndicator)
+import UnclechuI3Status.WindowTitle (setUpWindowTitle)
 import UnclechuI3Status.Types ( State (..)
                               , ProtocolInitialization (..)
                               , Unit (..)
@@ -95,11 +97,17 @@ import UnclechuI3Status.Types ( State (..)
                               , XmonadrcIfaceParams (..)
                               , XlibKeysHackIfaceParams (..)
                               , UPowerBatteryState (..)
+                              , ChangeEvent (..)
+                              , EventContainer (..)
+                              , EventContainerWindowProperties (..)
                               )
 
 
 view ∷ State → ByteString
-view s = encode $
+view s
+  = encode
+  $ maybe mempty (\x -> [windowTitleView x, _separate]) (windowTitle s)
+  ◇
   [ numLockView
   , capsLockView
   , alternativeView
@@ -107,7 +115,8 @@ view s = encode $
   , kbdLayoutView
   , _separate
   , dateAndTimeView
-  ] ◇ maybe mempty (\x → [_separate, batteryView x]) (battery s)
+  ]
+  ◇ maybe mempty (\x → [_separate, batteryView x]) (battery s)
 
   where numLockView, capsLockView, alternativeView, kbdLayoutView ∷ Unit
         dateAndTimeView, _separate ∷ Unit
@@ -168,6 +177,10 @@ view s = encode $
                               FullyCharged → chargingIcon
                               _            → dischargingIcon
 
+        windowTitleView x = def
+          { fullText = x
+          , name     = Just "window-title"
+          }
 
         _separate = def { fullText = "/", color = Just "#666666" }
         -- separateAfter x = x { separator           = Just True
@@ -289,6 +302,22 @@ main = do
       put $ Just $ \s → s
         { battery = fst <$> battery s >>= Just ∘ (,chargeState) }
 
+  !windowTitleUnsubscribe ← setUpWindowTitle $ \case
+    Left msg -> do
+      hPutStrLn stderr [qm| Error while parsing window title event: {msg} |]
+      hFlush stderr
+      put $ Just $ \s → s { windowTitle = Nothing }
+    Right ev -> case ev of
+      FocusEvent { container } ->
+        when (focused container) $
+          put $ Just $ \s → s
+            { windowTitle = Just $ container & windowProperties & title }
+      TitleEvent { container } ->
+        when (focused container) $
+          put $ Just $ \s → s
+            { windowTitle = Just $ container & windowProperties & title }
+      OtherEvent _ -> pure ()
+
   let handleEv = handleClickEvent $
         emit client ( signal (objPath (def ∷ XlibKeysHackIfaceParams))
                              (interfaceName (def ∷ XlibKeysHackIfaceParams))
@@ -312,6 +341,7 @@ main = do
 
   -- Handle POSIX signals to terminate application
   let terminate = do maybe (pure ()) snd batteryData -- unsubscribe
+                     windowTitleUnsubscribe
                      mapM_ (removeMatch client) sigHandlers
                      _ ← releaseName client
                        $ busName (def ∷ XmonadrcIfaceParams) dpyView
