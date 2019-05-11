@@ -12,6 +12,7 @@ module Main (main) where
 import                Prelude hiding (getLine)
 
 import "data-default" Data.Default (def)
+import "base"         Data.Functor (($>))
 import "base"         Data.Bool (bool)
 import "base"         Data.Word (Word8)
 import "base"         Data.Tuple (swap)
@@ -37,7 +38,7 @@ import "time"         Data.Time.LocalTime
 
 import "qm-interpolated-string" Text.InterpolatedString.QM (qm, qms)
 
-import "base" Control.Monad (when, forever)
+import "base" Control.Monad (when, forever, guard)
 import "base" Control.Concurrent (forkIO, threadDelay)
 import "base" Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
 
@@ -135,9 +136,16 @@ view s
                  , name     = Just "capslock"
                  }
 
-        alternativeView = let isOn = alternative s
-          in def { fullText = bool "hax" "HAX" isOn
-                 , color    = Just $ bool "#999999" "#ffff00" isOn
+        alternativeView = let alternativeState = alternative s
+          in def { fullText = fromMaybe "hax"
+                            $ (alternativeState >>= guard ∘ snd) $> "HAX"
+
+                 , color    = case alternativeState of
+                                   Nothing     → Just "#999999"
+                                   Just (1, _) → Just "#ffff00"
+                                   Just (2, _) → Just "#00ffff"
+                                   _           → Nothing
+
                  , name     = Just "alternative"
                  }
 
@@ -264,24 +272,47 @@ main = do
           addMatch client (matchRule member) $ handle stateModifier
 
         matchRule member = basicMatchRule { matchMember = Just member }
-        flag = fromMaybe False . fromVariant
-        num  = fromMaybe 0     . fromVariant
+        flag = fromMaybe False ∘ fromVariant
+        num  = fromMaybe 0     ∘ fromVariant
 
-        handle stateModifier (signalBody → [x]) = case variantType x of
-          TypeBoolean → put $ Just $ stateModifier x
-          TypeWord8   → put $ Just $ stateModifier x
-          _           → pure () -- Incorrect arguments, just ignoring it
+        handle stateModifier (signalBody → body) = case variantType <$> body of
+          [TypeBoolean]            → put $ Just $ stateModifier body
+          [TypeWord8]              → put $ Just $ stateModifier body
+          [TypeWord8, TypeBoolean] → put $ Just $ stateModifier body
+          _ → pure () -- Incorrect arguments, just ignoring it
 
-        -- Incorrect arguments, just ignoring it
-        handle _ _ = pure ()
+        oneArg f [x] = f x
+        oneArg _ _   = Prelude.id
+
+        twoArgs f [a, b] = f (a, b)
+        twoArgs _ _      = Prelude.id
 
      in mapM listen
 
              -- Pairs of IPC method and state modifir
-             [ ("numlock",     \x s → s { numLock     = flag x })
-             , ("capslock",    \x s → s { capsLock    = flag x })
-             , ("alternative", \x s → s { alternative = flag x })
-             , ("xkblayout",   \x s → s { kbdLayout   = num  x })
+             [ ("numlock",   oneArg $ \x s → s { numLock     = flag x })
+             , ("capslock",  oneArg $ \x s → s { capsLock    = flag x })
+             , ("xkblayout", oneArg $ \x s → s { kbdLayout   = num  x })
+
+             -- Support @"alternative"@ for backward compatibility
+             , ( "alternative"
+               , oneArg $ \(fromVariant → x ∷ Maybe Bool) s → s
+                   { alternative = (x >>= guard) $> (1 ∷ Word8, False) }
+               )
+
+             , ( "alternative_level"
+               , twoArgs $ \(level, isPermanent) s → s
+                   { alternative = do
+                       level'       ← fromVariant level
+                       isPermanent' ← fromVariant isPermanent
+
+                       -- @0@/@minBound@ level means
+                       -- alternative mode is turned off (@Nothing@).
+                       guard $ level' > minBound
+
+                       Just (level', isPermanent')
+                   }
+               )
              ]
 
   -- Fetcing date and time thread

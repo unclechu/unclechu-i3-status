@@ -51,7 +51,10 @@ data State
    = State
    { numLock     ∷ Bool
    , capsLock    ∷ Bool
-   , alternative ∷ Bool
+
+   , alternative ∷ Maybe (Word8, Bool)
+   -- ^ @Bool@ indicates whether alternative mode is turned on permanently
+
    , kbdLayout   ∷ Word8
    , lastTime    ∷ Maybe (UTCTime, TimeZone)
                        -- ^ The reason why don't just store ZonedTime here
@@ -66,7 +69,7 @@ instance Default State where
     = State
     { numLock     = False
     , capsLock    = False
-    , alternative = False
+    , alternative = Nothing
     , kbdLayout   = 0
     , lastTime    = Nothing
     , battery     = Nothing
