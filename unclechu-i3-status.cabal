@@ -1,8 +1,10 @@
--- This file has been generated from package.yaml by hpack version 0.28.2.
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.31.1.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2823e05084a71b477c44e07b7ebc3e9c1d4d78267231f64d3f3098caff8c61c7
+-- hash: db28d4a21d278860e1be455561e9af8b8a79f3898efe45385296e32029905b9b
 
 name:           unclechu-i3-status
 version:        0.0.0
@@ -14,7 +16,6 @@ copyright:      2017-2018 Viacheslav Lotsmanov
 license:        GPL-3
 license-file:   LICENSE
 build-type:     Simple
-cabal-version:  >= 1.10
 
 library
   hs-source-dirs:
