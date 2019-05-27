@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: db28d4a21d278860e1be455561e9af8b8a79f3898efe45385296e32029905b9b
+-- hash: 53d972e7a9d31fbb482b73070aaa9c7200bb475439b146b80ae926bff9bc70f5
 
 name:           unclechu-i3-status
 version:        0.0.0
@@ -36,6 +36,7 @@ library
     , directory
     , process
     , qm-interpolated-string
+    , safe
     , time
     , unix
     , unordered-containers
@@ -71,6 +72,7 @@ executable unclechu-i3-status
     , directory
     , process
     , qm-interpolated-string
+    , safe
     , time
     , unclechu-i3-status
     , unix

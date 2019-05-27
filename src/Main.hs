@@ -11,6 +11,7 @@ module Main (main) where
 
 import                Prelude hiding (getLine)
 
+import "safe"         Safe (atDef)
 import "data-default" Data.Default (def)
 import "base"         Data.Functor (($>))
 import "base"         Data.Bool (bool)
@@ -150,15 +151,18 @@ view s
                  , name     = Just "alternative"
                  }
 
-        kbdLayoutView
+        -- | Layout names are just hardcoded,
+        --   they may be not in this exact order.
+        kbdLayoutView = go where
+          idx     = fromIntegral $ kbdLayout s
+          layouts = ["US", "RU", "FI"]
+          colors  = ["#ff0000", "#00ff00", "#0000ff"]
 
-          | kbdLayout s ∈ [0, 1] = let isRU = kbdLayout s ≢ 0
-            in def { fullText = bool "US" "RU" isRU
-                   , color    = Just $ bool "#ff0000" "#00ff00" isRU
-                   , name     = Just "kbdlayout"
-                   }
-
-          | otherwise = def { fullText = "%ERROR%", color = Just "#ff0000" }
+          go = def
+             { fullText = atDef "%ERROR%" layouts idx
+             , color    = Just $ atDef "#ff0000" colors idx
+             , name     = Just "kbdlayout"
+             }
 
         dateAndTimeView =
           maybe def { fullText = "…" } (set ∘ render) $ lastTime s
