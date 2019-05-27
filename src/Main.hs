@@ -14,13 +14,14 @@ import                Prelude hiding (getLine)
 import "data-default" Data.Default (def)
 import "base"         Data.Functor (($>))
 import "base"         Data.Bool (bool)
-import "base"         Data.Word (Word8)
+import "base"         Data.Word (Word8, Word32)
 import "base"         Data.Tuple (swap)
 import "base"         Data.Fixed (Pico)
 import "base"         Data.Maybe (fromMaybe, listToMaybe, catMaybes)
 import "aeson"        Data.Aeson (encode, decodeStrict)
 import "bytestring"   Data.ByteString.Char8 (getLine, uncons)
 import "bytestring"   Data.ByteString.Lazy.Char8 (ByteString, append)
+import "base"         Data.IORef (newIORef, readIORef, writeIORef)
 import "time"         Data.Time.Clock (UTCTime)
 
 import "time"         Data.Time.LocalTime
@@ -63,7 +64,7 @@ import "X11"  Graphics.X11.Xlib (openDisplay, closeDisplay)
 
 import "dbus" DBus ( Signal (signalBody, signalSender, signalDestination)
                    , signal
-                   , IsVariant (fromVariant)
+                   , IsVariant (fromVariant, toVariant)
                    , variantType
                    , Type (TypeBoolean, TypeWord8)
                    )
@@ -290,9 +291,9 @@ main = do
      in mapM listen
 
              -- Pairs of IPC method and state modifir
-             [ ("numlock",   oneArg $ \x s → s { numLock     = flag x })
-             , ("capslock",  oneArg $ \x s → s { capsLock    = flag x })
-             , ("xkblayout", oneArg $ \x s → s { kbdLayout   = num  x })
+             [ ("numlock",   oneArg $ \x s → s { numLock   = flag x })
+             , ("capslock",  oneArg $ \x s → s { capsLock  = flag x })
+             , ("xkblayout", oneArg $ \x s → s { kbdLayout = num  x })
 
              -- Support @"alternative"@ for backward compatibility
              , ( "alternative"
@@ -369,15 +370,30 @@ main = do
 
       OtherEvent _ → pure ()
 
-  let handleEv = handleClickEvent $
+  let defState ∷ State
+      defState
+        = def
+        { battery     = fst <$> batteryData
+        , windowTitle = fst windowTitleData
+        }
+
+  stateRef ← newIORef defState
+
+  let handleEv = handleClickEvent $ do
+        (newAlternativeState :: Word32) ←
+          readIORef stateRef <&> alternative <&> \case
+            Nothing     → 1
+            Just (1, _) → 2
+            _           → 0
+
         emit client ( signal (objPath (def ∷ XlibKeysHackIfaceParams))
                              (interfaceName (def ∷ XlibKeysHackIfaceParams))
-                             "toggle_alternative_mode"
+                             "switch_alternative_mode"
                     ) { signalSender =
                           Just $ busName (def ∷ XmonadrcIfaceParams) dpyView
                       , signalDestination =
                           Just $ busName (def ∷ XlibKeysHackIfaceParams) dpyView
-                      , signalBody = []
+                      , signalBody = [toVariant newAlternativeState]
                       }
 
   -- Reading click events from i3-bar
@@ -418,14 +434,9 @@ main = do
         let newState = stateModifier prevState
          in if newState ≡ prevState
                then pure prevState
-               else newState <$ echo ("," `append` view newState)
+               else newState <$ do writeIORef stateRef newState
+                                   echo $ "," `append` view newState
 
       next s = takeMVar mVar >>= handle s >>= next
-
-      defState
-        = def
-        { battery     = fst <$> batteryData
-        , windowTitle = fst windowTitleData
-        }
 
    in () <$ echo (view defState) >> next defState

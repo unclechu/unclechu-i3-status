@@ -1,9 +1,10 @@
 {-# LANGUAGE UnicodeSyntax, PackageImports #-}
 
 module UnclechuI3Status.Utils
-     ( (×), (◇), (<&>), (<&!>)
+     ( (×), (◇), (<&!>)
      , module Prelude.Unicode
      , module Data.Function
+     , module Data.Functor
      , echo
      , renderDate
      , getDisplayName
@@ -14,6 +15,7 @@ import Prelude hiding (putStrLn)
 import "base-unicode-symbols" Prelude.Unicode
 
 import "base" Data.Function ((&))
+import "base" Data.Functor ((<&>))
 import "base" Data.Monoid ((<>))
 import "bytestring" Data.ByteString.Lazy.Char8 (ByteString, putStrLn)
 
@@ -42,11 +44,6 @@ import "X11" Graphics.X11.Xlib (Display, displayString)
 
 (×) ∷ Num α ⇒ α → α → α;    (×) = (*);  {-# INLINE (×) #-}; infixl 7 ×
 (◇) ∷ Monoid α ⇒ α → α → α; (◇) = (<>); {-# INLINE (◇) #-}; infixr 6 ◇
-
-(<&>) ∷ Functor φ ⇒ φ α → (α → β) → φ β
-(<&>) = flip (<$>)
-{-# INLINE (<&>) #-}
-infixl 1 <&>
 
 (<&!>) ∷ Monad φ ⇒ φ α → (α → β) → φ β
 (<&!>) = flip (<$!>)
