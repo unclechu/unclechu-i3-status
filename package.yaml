@@ -19,7 +19,6 @@ dependencies:
   - directory
   - process
   - qm-interpolated-string
-  - safe
   - time
   - unix
   - unordered-containers

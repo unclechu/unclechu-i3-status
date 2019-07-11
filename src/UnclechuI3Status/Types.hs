@@ -53,9 +53,15 @@ data State
    , capsLock    ∷ Bool
 
    , alternative ∷ Maybe (Word8, Bool)
-   -- ^ @Bool@ indicates whether alternative mode is turned on permanently
+       -- ^ @Bool@ indicates whether alternative mode is turned on permanently
 
-   , kbdLayout   ∷ Word8
+   , kbdLayout   ∷ Maybe (Either (Maybe Word8) Layout)
+       -- ^ First @Maybe@ indicates whether value have been received, second
+       --   nested @Maybe@ inside @Left@ indicates whether it is failed to parse
+       --   even just a number.
+       --
+       -- @Left@ contains unknown number of layout.
+
    , lastTime    ∷ Maybe (UTCTime, TimeZone)
                        -- ^ The reason why don't just store ZonedTime here
                        --   is that it doesn't have Eq instance.
@@ -70,7 +76,7 @@ instance Default State where
     { numLock     = False
     , capsLock    = False
     , alternative = Nothing
-    , kbdLayout   = 0
+    , kbdLayout   = Nothing
     , lastTime    = Nothing
     , battery     = Nothing
     , windowTitle = Nothing

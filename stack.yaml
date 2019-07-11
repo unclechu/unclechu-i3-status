@@ -5,4 +5,5 @@ packages:
   - '.'
 
 extra-deps:
+  - base-unicode-symbols-0.2.4.2
   - hsc2hs-0.68.4

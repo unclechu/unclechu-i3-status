@@ -10,8 +10,8 @@
 module Main (main) where
 
 import                Prelude hiding (getLine)
+import                Prelude.Unicode
 
-import "safe"         Safe (atDef)
 import "data-default" Data.Default (def)
 import "base"         Data.Functor (($>))
 import "base"         Data.Bool (bool)
@@ -40,7 +40,8 @@ import "time"         Data.Time.LocalTime
 
 import "qm-interpolated-string" Text.InterpolatedString.QM (qm, qms)
 
-import "base" Control.Monad (when, forever, guard)
+import "base" Control.Monad (when, forever, guard, void)
+import "base" Control.Applicative ((<|>))
 import "base" Control.Concurrent (forkIO, threadDelay)
 import "base" Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
 
@@ -154,15 +155,13 @@ view s
         -- | Layout names are just hardcoded,
         --   they may be not in this exact order.
         kbdLayoutView = go where
-          idx     = fromIntegral $ kbdLayout s
-          layouts = ["US", "RU", "FI"]
-          colors  = ["#ff0000", "#00ff00", "#0000ff"]
+          go = def { name = Just "kbdlayout", fullText, color }
 
-          go = def
-             { fullText = atDef "%ERROR%" layouts idx
-             , color    = Just $ atDef "#ff0000" colors idx
-             , name     = Just "kbdlayout"
-             }
+          (fullText, Just → color) = case kbdLayout s of
+            Nothing → ("%UNDEFINED%", "#eeeeee")
+            Just (Left Nothing) → ("%ERROR%", "#ff0000")
+            Just (Left (Just n)) → ("%UNKNOWN:" ◇ show n ◇ "%", "#eeeeee")
+            Just (Right layout) → (show layout, colorOfLayout layout)
 
         dateAndTimeView =
           maybe def { fullText = "…" } (set ∘ render) $ lastTime s
@@ -278,7 +277,6 @@ main = do
 
         matchRule member = basicMatchRule { matchMember = Just member }
         flag = fromMaybe False ∘ fromVariant
-        num  = fromMaybe 0     ∘ fromVariant
 
         handle stateModifier (signalBody → body) = case variantType <$> body of
           [TypeBoolean]            → put $ Just $ stateModifier body
@@ -292,12 +290,17 @@ main = do
         twoArgs f [a, b] = f (a, b)
         twoArgs _ _      = Prelude.id
 
+        parseLayout
+          = fromVariant
+          • fmap (\n → Left (Just n) `maybe` Right $ numToLayout n)
+          • (<|> Just (Left Nothing))
+
      in mapM listen
 
              -- Pairs of IPC method and state modifir
              [ ("numlock",   oneArg $ \x s → s { numLock   = flag x })
              , ("capslock",  oneArg $ \x s → s { capsLock  = flag x })
-             , ("xkblayout", oneArg $ \x s → s { kbdLayout = num  x })
+             , ("xkblayout", oneArg $ \x s → s { kbdLayout = parseLayout x })
 
              -- Support @"alternative"@ for backward compatibility
              , ( "alternative"
@@ -428,18 +431,25 @@ main = do
   echo $ encode (def ∷ ProtocolInitialization) { clickEvents = True }
   echo "[" -- Opening of lazy list
 
+  dzen ← newIORef Nothing <&> ((void ∘ forkIO) ∘) ∘ dzenCurLayout
+
   -- Main thread is reactive loop that gets state modifier from another thread
   -- to update the state and re-render it (if it's Just) or terminate the
   -- application (it it's Nothing).
   let handle ∷ State → Maybe (State → State) → IO State
       handle prevState Nothing = prevState <$ echo "]" >> exitSuccess
 
-      handle prevState (Just stateModifier) =
-        let newState = stateModifier prevState
-         in if newState ≡ prevState
-               then pure prevState
-               else newState <$ do writeIORef stateRef newState
-                                   echo $ "," `append` view newState
+      handle prevState (Just stateModifier) = go where
+        go = if newState ≡ prevState then pure prevState else newStateHandler
+        newState = stateModifier prevState
+
+        newStateHandler = newState <$ do
+          writeIORef stateRef newState
+          echo $ "," `append` view newState
+
+          case kbdLayout newState of
+               x@(Just (Right layout)) | x ≢ kbdLayout prevState → dzen layout
+               _ → pure ()
 
       next s = takeMVar mVar >>= handle s >>= next
 
