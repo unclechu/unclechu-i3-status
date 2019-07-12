@@ -3,7 +3,7 @@
 
 {-# LANGUAGE PackageImports, UnicodeSyntax, LambdaCase, TupleSections #-}
 {-# LANGUAGE OverloadedStrings, QuasiQuotes #-}
-{-# LANGUAGE BangPatterns, ViewPatterns #-}
+{-# LANGUAGE BangPatterns, ViewPatterns, MultiWayIf #-}
 {-# LANGUAGE DuplicateRecordFields, NamedFieldPuns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -14,7 +14,6 @@ import                Prelude.Unicode
 
 import "data-default" Data.Default (def)
 import "base"         Data.Functor (($>))
-import "base"         Data.Bool (bool)
 import "base"         Data.Word (Word8, Word32)
 import "base"         Data.Tuple (swap)
 import "base"         Data.Fixed (Pico)
@@ -128,26 +127,23 @@ view s
         dateAndTimeView, _separate ∷ Unit
 
         numLockView = let isOn = numLock s
-          in def { fullText = "num"
-                 , color    = Just $ bool "#999999" "#eeeeee" isOn
+          in def { fullText = showNumLock isOn
+                 , color    = Just $ colorOfNumLock isOn
                  , name     = Just "numlock"
                  }
 
         capsLockView = let isOn = capsLock s
-          in def { fullText = bool "caps" "CAPS" isOn
-                 , color    = Just $ bool "#999999" "#ff9900" isOn
+          in def { fullText = showCapsLock isOn
+                 , color    = Just $ colorOfCapsLock isOn
                  , name     = Just "capslock"
                  }
 
         alternativeView = let alternativeState = alternative s
-          in def { fullText = fromMaybe "hax"
-                            $ (alternativeState >>= guard ∘ snd) $> "HAX"
+          in def { fullText = either (\n → "%UNKNOWN:" ◇ show n ◇ "%") Prelude.id
+                            $ showAlternativeState alternativeState
 
-                 , color    = case alternativeState of
-                                   Nothing     → Just "#999999"
-                                   Just (1, _) → Just "#ffff00"
-                                   Just (2, _) → Just "#00ffff"
-                                   _           → Nothing
+                 , color    = either (const Nothing) Just
+                            $ colorOfAlternativeState alternativeState
 
                  , name     = Just "alternative"
                  }
@@ -431,7 +427,11 @@ main = do
   echo $ encode (def ∷ ProtocolInitialization) { clickEvents = True }
   echo "[" -- Opening of lazy list
 
-  dzen ← newIORef Nothing <&> ((void ∘ forkIO) ∘) ∘ dzenCurLayout
+  dzen'
+    ← newIORef Nothing <&>
+    \ ref text color → void $ forkIO $ dzen ref text color
+
+  let darn = dzen' "ERR" "#ff0000"
 
   -- Main thread is reactive loop that gets state modifier from another thread
   -- to update the state and re-render it (if it's Just) or terminate the
@@ -447,9 +447,29 @@ main = do
           writeIORef stateRef newState
           echo $ "," `append` view newState
 
-          case kbdLayout newState of
-               x@(Just (Right layout)) | x ≢ kbdLayout prevState → dzen layout
-               _ → pure ()
+          if | kbdLayout newState ≢ kbdLayout prevState →
+                 case kbdLayout newState of
+                      Just (Right layout) →
+                        dzen' (show layout) (colorOfLayout layout)
+                      _ → darn
+
+             | alternative newState ≢ alternative prevState
+             ∧ ( fmap snd (alternative newState)  ≡ Just True
+               ∨ fmap snd (alternative prevState) ≡ Just True
+               ) →
+                 either (const darn) (uncurry dzen') $ (,)
+                   <$> showAlternativeState    (alternative newState)
+                   <*> colorOfAlternativeState (alternative newState)
+
+             | capsLock newState ≢ capsLock prevState →
+                 dzen' (showCapsLock    $ capsLock newState)
+                       (colorOfCapsLock $ capsLock newState)
+
+             | numLock newState ≢ numLock prevState →
+                 dzen' (showNumLock    $ numLock newState)
+                       (colorOfNumLock $ numLock newState)
+
+             | otherwise → pure ()
 
       next s = takeMVar mVar >>= handle s >>= next
 
