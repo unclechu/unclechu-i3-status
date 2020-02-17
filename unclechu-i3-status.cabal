@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.31.1.
+-- This file has been generated from package.yaml by hpack version 0.31.2.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c70ab419847e5e06f57dc58e9473f8a258a1f74dd82fa482cf94c27f722bf192
+-- hash: 0060231cff9482f17ba07a9f940ecb3587bc62b17152d6cbfe16ccd44475f8e5
 
 name:           unclechu-i3-status
 version:        0.0.0
@@ -12,7 +12,7 @@ category:       System
 homepage:       https://github.com/unclechu/unclechu-i3-status
 author:         Viacheslav Lotsmanov
 maintainer:     <lotsmanov89@gmail.com>
-copyright:      2017-2018 Viacheslav Lotsmanov
+copyright:      2017-2020 Viacheslav Lotsmanov
 license:        GPL-3
 license-file:   LICENSE
 build-type:     Simple
