@@ -24,7 +24,7 @@ module UnclechuI3Status.Types
 import "base" GHC.Generics (Generic)
 
 import "base"         Data.Int (Int64)
-import "base"         Data.Word (Word, Word8)
+import "base"         Data.Word (Word8)
 import "data-default" Data.Default (Default (def))
 import "aeson"        Data.Aeson.Types ( Options (fieldLabelModifier)
                                        , camelTo2

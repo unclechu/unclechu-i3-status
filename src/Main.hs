@@ -13,7 +13,6 @@ import                Prelude hiding (getLine)
 import                Prelude.Unicode
 
 import "data-default" Data.Default (def)
-import "base"         Data.Functor (($>))
 import "base"         Data.Word (Word8, Word32)
 import "base"         Data.Tuple (swap)
 import "base"         Data.Fixed (Pico)
