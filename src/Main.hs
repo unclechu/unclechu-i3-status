@@ -332,11 +332,11 @@ main = do
 
     (Just chargeLeft, Nothing) →
       put $ Just $ \s → s
-        { battery = snd <$> battery s >>= Just ∘ (chargeLeft,) }
+        { battery = battery s >>= Just ∘ (chargeLeft,) ∘ snd }
 
     (Nothing, Just chargeState) →
       put $ Just $ \s → s
-        { battery = fst <$> battery s >>= Just ∘ (,chargeState) }
+        { battery = battery s >>= Just ∘ (,chargeState) ∘ fst }
 
   !windowTitleData ← setUpWindowTitle $ \case
     Left msg → do
