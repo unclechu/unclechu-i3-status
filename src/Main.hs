@@ -17,6 +17,7 @@ import "base"         Data.Word (Word8, Word32)
 import "base"         Data.Tuple (swap)
 import "base"         Data.Fixed (Pico)
 import "base"         Data.Maybe (fromMaybe, listToMaybe, catMaybes)
+import "base"         Data.Function (fix)
 import "aeson"        Data.Aeson (encode, decodeStrict)
 import "bytestring"   Data.ByteString.Char8 (getLine, uncons)
 import "bytestring"   Data.ByteString.Lazy.Char8 (ByteString, append)
@@ -38,7 +39,7 @@ import "time"         Data.Time.LocalTime
 
 import "qm-interpolated-string" Text.InterpolatedString.QM (qm, qms)
 
-import "base" Control.Monad (when, forever, guard, void)
+import "base" Control.Monad (when, forever, guard, void, join)
 import "base" Control.Applicative ((<|>))
 import "base" Control.Concurrent (forkIO, threadDelay)
 import "base" Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
@@ -149,14 +150,19 @@ view s
 
         -- | Layout names are just hardcoded,
         --   they may be not in this exact order.
-        kbdLayoutView = go where
-          go = pure def { name = Just "kbdlayout", fullText, color }
+        kbdLayoutView = render where
+          f nameSuffix fullText (Just → color) =
+            def { name = Just ("kbdlayout-" ⋄ nameSuffix), fullText, color }
 
-          (fullText, Just → color) = case kbdLayout s of
-            Nothing → ("%UNDEFINED%", "#eeeeee")
-            Just (Left Nothing) → ("%ERROR%", "#ff0000")
-            Just (Left (Just n)) → ("%UNKNOWN:" ⋄ show n ⋄ "%", "#eeeeee")
-            Just (Right layout) → (show layout, colorOfLayout layout)
+          render = case kbdLayout s of
+            Nothing → pure $ f "UNDEFINED" "%UNDEFINED%" "#eeeeee"
+            Just (Left Nothing) → pure $ f "ERROR" "%ERROR%" "#ff0000"
+            Just (Left (Just n)) →
+              pure $ f "UNKNOWN" ("%UNKNOWN:" ⋄ show n ⋄ "%") "#eeeeee"
+            Just (Right layout) →
+              [minBound .. maxBound ∷ Layout] <&> \x →
+                f (show x) (show x) $
+                  if x ≡ layout then colorOfLayout layout else "#666666"
 
         dateAndTimeView =
           maybe def { fullText = "…" } (set ∘ render) $ lastTime s
@@ -208,19 +214,40 @@ fetchDateAndTime = getZonedTime <&> \zt →
    in (secsLeft, utc, timeZone)
 
 
-handleClickEvent ∷ IO () → ClickEvent → IO ()
-handleClickEvent tglAlt (\x → name (x ∷ ClickEvent) → Just x) = case x of
+data HandleClickEventInterface
+   = HandleClickEventInterface
+   { toggleAlternativeMode ∷ IO ()
+   , getCurrentKbdLayout   ∷ IO (Maybe Layout)
+   }
+
+handleClickEvent ∷ HandleClickEventInterface → ClickEvent → IO ()
+handleClickEvent iface (\x → name (x ∷ ClickEvent) → Just name') = case name' of
 
   "numlock"     → fakeKeyEvent $ map (xK_Num_Lock,)  [False, True, False]
   "capslock"    → fakeKeyEvent $ map (xK_Caps_Lock,) [False, True, False]
   "datentime"   → spawnProc "gnome-calendar" []
-  "alternative" → tglAlt
+  "alternative" → toggleAlternativeMode iface
 
-  "kbdlayout"   → fakeKeyEvent $
-                    let reducer s acc = (xK_Shift_L, s) : (xK_Shift_R, s) : acc
-                     in foldr reducer [] [False, True, False]
+  ['k','b','d','l','a','y','o','u','t','-',a,b] →
+    let
+      enum = [minBound .. maxBound ∷ Layout]
+      next = foldr reducer [] [False, True, False]
+        where reducer s acc = (xK_Shift_L, s) : (xK_Shift_R, s) : acc
+      switchTo curLayout toLayout = join $ replicate n next
+        where
+          n = fix (\f x@(l:ls) → if l ≡ curLayout then x else f ls) (cycle enum)
+            & fix (\f i (l:ls) → if l ≡ toLayout then i else f (succ i) ls)
+                  (0 ∷ Int)
+      resolve = do
+        layout ← getCurrentKbdLayout iface
+        fakeKeyEvent ∘ maybe next (uncurry switchTo) $ (,)
+          <$> layout
+          <*> foldl (\acc l → if show l ≡ [a,b] then Just l else acc)
+                Nothing enum
+    in
+      resolve
 
-  _             → pure ()
+  _ → pure ()
 
 handleClickEvent _ _ = pure ()
 
@@ -381,22 +408,31 @@ main = do
 
   stateRef ← newIORef defState
 
-  let handleEv = handleClickEvent $ do
-        (newAlternativeState :: Word32) ←
-          readIORef stateRef <&> alternative <&> \case
-            Nothing     → 1
-            Just (1, _) → 2
-            _           → 0
+  let
+    toggleAlternativeMode' = do
+      (newAlternativeState :: Word32) ←
+        readIORef stateRef <&> alternative <&> \case
+          Nothing     → 1
+          Just (1, _) → 2
+          _           → 0
 
-        emit client ( signal (objPath (def ∷ XlibKeysHackIfaceParams))
-                             (interfaceName (def ∷ XlibKeysHackIfaceParams))
-                             "switch_alternative_mode"
-                    ) { signalSender =
-                          Just $ busName (def ∷ XmonadrcIfaceParams) dpyView
-                      , signalDestination =
-                          Just $ busName (def ∷ XlibKeysHackIfaceParams) dpyView
-                      , signalBody = [toVariant newAlternativeState]
-                      }
+      emit client ( signal (objPath (def ∷ XlibKeysHackIfaceParams))
+                           (interfaceName (def ∷ XlibKeysHackIfaceParams))
+                           "switch_alternative_mode"
+                  ) { signalSender =
+                        Just $ busName (def ∷ XmonadrcIfaceParams) dpyView
+                    , signalDestination =
+                        Just $ busName (def ∷ XlibKeysHackIfaceParams) dpyView
+                    , signalBody = [toVariant newAlternativeState]
+                    }
+
+    handleEv
+      = handleClickEvent HandleClickEventInterface
+      { toggleAlternativeMode = toggleAlternativeMode'
+      , getCurrentKbdLayout
+          = readIORef stateRef <&> kbdLayout
+          • fmap (either (const Nothing) Just) • join
+      }
 
   -- Reading click events from i3-bar
   _ ← forkIO $ do
