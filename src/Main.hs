@@ -111,19 +111,19 @@ view ∷ State → ByteString
 view s
   = encode
   $ maybe mempty (\x → [windowTitleView x, _separate]) (windowTitle s)
-  ◇
+  ⋄
   [ numLockView
   , capsLockView
   , alternativeView
   , _separate
-  , kbdLayoutView
-  , _separate
-  , dateAndTimeView
   ]
-  ◇ maybe mempty (\x → [_separate, batteryView x]) (battery s)
+  ⋄ kbdLayoutView
+  ⋄ [ _separate, dateAndTimeView ]
+  ⋄ maybe mempty (\x → [_separate, batteryView x]) (battery s)
 
-  where numLockView, capsLockView, alternativeView, kbdLayoutView ∷ Unit
+  where numLockView, capsLockView, alternativeView ∷ Unit
         dateAndTimeView, _separate ∷ Unit
+        kbdLayoutView ∷ [Unit]
 
         numLockView = let isOn = numLock s
           in def { fullText = showNumLock isOn
@@ -138,7 +138,7 @@ view s
                  }
 
         alternativeView = let alternativeState = alternative s
-          in def { fullText = either (\n → "%UNKNOWN:" ◇ show n ◇ "%") Prelude.id
+          in def { fullText = either (\n → "%UNKNOWN:" ⋄ show n ⋄ "%") Prelude.id
                             $ showAlternativeState alternativeState
 
                  , color    = either (const Nothing) Just
@@ -150,12 +150,12 @@ view s
         -- | Layout names are just hardcoded,
         --   they may be not in this exact order.
         kbdLayoutView = go where
-          go = def { name = Just "kbdlayout", fullText, color }
+          go = pure def { name = Just "kbdlayout", fullText, color }
 
           (fullText, Just → color) = case kbdLayout s of
             Nothing → ("%UNDEFINED%", "#eeeeee")
             Just (Left Nothing) → ("%ERROR%", "#ff0000")
-            Just (Left (Just n)) → ("%UNKNOWN:" ◇ show n ◇ "%", "#eeeeee")
+            Just (Left (Just n)) → ("%UNKNOWN:" ⋄ show n ⋄ "%", "#eeeeee")
             Just (Right layout) → (show layout, colorOfLayout layout)
 
         dateAndTimeView =
@@ -165,7 +165,7 @@ view s
 
         batteryView (chargeLeft, batteryState) = def
           { -- Rounding because floating point is always zero
-            fullText = icon ◇ show (round chargeLeft ∷ Word8) ◇ "%"
+            fullText = icon ⋄ show (round chargeLeft ∷ Word8) ⋄ "%"
 
           , name     = Just "battery"
 

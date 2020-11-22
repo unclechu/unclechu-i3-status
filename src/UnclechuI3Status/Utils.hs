@@ -1,7 +1,7 @@
 {-# LANGUAGE UnicodeSyntax, PackageImports, LambdaCase, ScopedTypeVariables #-}
 
 module UnclechuI3Status.Utils
-     ( (•), (◇), (<&!>)
+     ( (•), (⋄), (<&!>)
      , module Prelude.Unicode
      , module Data.Function
      , module Data.Functor
@@ -66,7 +66,7 @@ import "X11" Graphics.X11.Xlib (Display, displayString)
 
 
 (•) ∷ (α → β) → (β → γ) → α → γ; (•) = flip (∘); {-# INLINE (•) #-}; infixl 9 •
-(◇) ∷ Semigroup α ⇒ α → α → α;   (◇) = (<>);     {-# INLINE (◇) #-}; infixr 6 ◇
+(⋄) ∷ Semigroup α ⇒ α → α → α;   (⋄) = (<>);     {-# INLINE (⋄) #-}; infixr 6 ⋄
 
 (<&!>) ∷ Monad φ ⇒ φ α → (α → β) → φ β
 (<&!>) = flip (<$!>)
@@ -159,11 +159,11 @@ dzen procRef text fgColor = do
 
   let fontStr (size ∷ Word)
         = "-*-"
-        ◇ fontFamily ◇ "-"
-        ◇ fontStyle  ◇ "-*-*-*-"
-        ◇ show size  ◇ "-*-*-*-*-*-*-*"
+        ⋄ fontFamily ⋄ "-"
+        ⋄ fontStyle  ⋄ "-*-*-*-"
+        ⋄ show size  ⋄ "-*-*-*-*-*-*-*"
 
-  let colorfulText = "^fn(" ◇ fontStr fontSize ◇ ")^fg(" ◇ fgColor ◇ ")" ◇ text
+  let colorfulText = "^fn(" ⋄ fontStr fontSize ⋄ ")^fg(" ⋄ fgColor ⋄ ")" ⋄ text
 
   let args = [ "-ta", "c"
              , "-title-name", wmTitle
