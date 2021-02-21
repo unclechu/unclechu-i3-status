@@ -1,25 +1,19 @@
-{ pkgs ? import nix/default-nixpkgs-pin.nix
-, name ? "unclechu-i3-status"
-, src  ? ./.
+let sources = import nix/sources.nix; in
+{ pkgs  ? import sources.nixpkgs {}
+, utils ? import sources.nix-utils { inherit pkgs; }
+, src   ? (import nix/clean-src.nix { inherit pkgs; }) ./.
+, justStaticExecutable ? true
 }:
 let
-  utils = import nix/utils-pin.nix { inherit pkgs; };
   inherit (utils) wrapExecutable;
 
-  clean-fn = dir:
-    pkgs.lib.cleanSourceWith {
-      name = "${name}-source";
-      src = pkgs.lib.cleanSource dir;
-      filter = (fileName: fileType: ! (
-        # exclude cabal stuff
-        fileType == "directory" &&
-        builtins.match "^dist(-newstyle)?$" (baseNameOf fileName) != null
-      ));
-    };
+  haskellPackages = pkgs.haskellPackages.extend (self: super: {
+    ${name} = pkg;
+  });
 
-  clean-src = clean-fn src;
+  name = "unclechu-i3-status";
   pkg = pkgs.haskellPackages.callCabal2nix name src {};
-  pkg-exe = "${pkgs.haskell.lib.justStaticExecutables pkg}/bin/${name}";
+  pkg-exe = "${justStaticExecutableFn pkg}/bin/${name}";
 
   dzen2 = "${pkgs.dzen2}/bin/dzen2";
 
@@ -28,9 +22,14 @@ let
     ${utils.shellCheckers.fileIsExecutable pkg-exe}
   '';
 
+  justStaticExecutableFn =
+    if justStaticExecutable
+    then pkgs.haskell.lib.justStaticExecutables
+    else x: x;
+
   wrapper = wrapExecutable pkg-exe {
     deps = [ pkgs.dzen2 ];
     inherit checkPhase;
   };
 in
-wrapper // { inherit src; haskellPackage = pkg; }
+wrapper // { inherit src haskellPackages; haskellPackage = pkg; }
