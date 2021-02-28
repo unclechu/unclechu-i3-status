@@ -37,15 +37,14 @@ import "base" Data.List (find)
 import "bytestring" Data.ByteString.Lazy.Char8 (ByteString, putStrLn)
 import qualified "base" Data.IORef as IORef
 
-import "time" Data.Time.Format ( FormatTime
-                               , formatTime
-                               , defaultTimeLocale
-                               )
+import "time" Data.Time.Format (FormatTime, formatTime, defaultTimeLocale)
 
 import "base" Control.Monad ((<$!>))
 import "base" Control.Concurrent (ThreadId, forkIO, threadDelay, killThread)
 
-import "base" System.IO (Handle, stdout, hFlush, hPutStrLn, hClose)
+import "base" System.IO ( Handle, IOMode (ReadWriteMode)
+                        , stdout, hFlush, hPutStrLn, hClose, openFile
+                        )
 
 import "process" System.Process ( CreateProcess ( std_in
                                                 , std_out
@@ -53,7 +52,7 @@ import "process" System.Process ( CreateProcess ( std_in
                                                 , new_session
                                                 )
 
-                                , StdStream (NoStream, CreatePipe)
+                                , StdStream (NoStream, CreatePipe, UseHandle)
                                 , ProcessHandle
 
                                 , proc
@@ -89,12 +88,14 @@ getDisplayName dpy = f <$> displayString dpy
         f  x  =  x
 
 spawnProc ∷ FilePath → [String] → IO ()
-spawnProc cmd args = () <$ createProcess (proc cmd args)
-  { std_in      = NoStream
-  , std_out     = NoStream
-  , std_err     = NoStream
-  , new_session = True
-  }
+spawnProc cmd args = do
+  devNull <- openFile "/dev/null" ReadWriteMode
+  () <$ createProcess (proc cmd args)
+    { std_in      = UseHandle devNull
+    , std_out     = UseHandle devNull
+    , std_err     = UseHandle devNull
+    , new_session = True
+    }
 
 
 data Layout = US | RU | FI deriving (Eq, Show, Enum, Bounded)
