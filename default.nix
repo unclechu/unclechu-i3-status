@@ -1,35 +1,43 @@
 let sources = import nix/sources.nix; in
-{ pkgs  ? import sources.nixpkgs {}
-, utils ? import sources.nix-utils { inherit pkgs; }
-, src   ? (import nix/clean-src.nix { inherit pkgs; }) ./.
+# This module is supposed to be called with ‘nixpkgs.callPackage’
+{ callPackage
+, haskellPackages
+, haskell
+, dzen2
+
+# Overridable dependencies
+, __nix-utils ? callPackage sources.nix-utils {}
+
+# Build options
+, __src ? (callPackage nix/clean-src.nix {}) ./. # A directory
 , justStaticExecutable ? true
 }:
 let
-  inherit (utils) wrapExecutable;
+  inherit (__nix-utils) wrapExecutable shellCheckers;
 
-  haskellPackages = pkgs.haskellPackages.extend (self: super: {
+  name = "unclechu-i3-status";
+  pkg = extendedHaskellPackages.callCabal2nix name __src {};
+  pkg-exe = "${justStaticExecutableFn pkg}/bin/${name}";
+
+  extendedHaskellPackages = haskellPackages.extend (self: super: {
     ${name} = pkg;
   });
 
-  name = "unclechu-i3-status";
-  pkg = pkgs.haskellPackages.callCabal2nix name src {};
-  pkg-exe = "${justStaticExecutableFn pkg}/bin/${name}";
-
-  dzen2 = "${pkgs.dzen2}/bin/dzen2";
-
-  checkPhase = ''
-    ${utils.shellCheckers.fileIsExecutable dzen2}
-    ${utils.shellCheckers.fileIsExecutable pkg-exe}
-  '';
-
   justStaticExecutableFn =
     if justStaticExecutable
-    then pkgs.haskell.lib.justStaticExecutables
+    then haskell.lib.justStaticExecutables
     else x: x;
 
-  wrapper = wrapExecutable pkg-exe {
-    deps = [ pkgs.dzen2 ];
-    inherit checkPhase;
-  };
+  checkPhase = ''
+    ${shellCheckers.fileIsExecutable "${dzen2}/bin/dzen2"}
+    ${shellCheckers.fileIsExecutable pkg-exe}
+  '';
 in
-wrapper // { inherit src haskellPackages; haskellPackage = pkg; }
+wrapExecutable pkg-exe {
+  deps = [ dzen2 ];
+  inherit checkPhase;
+} // {
+  inherit dzen2;
+  haskellPackages = extendedHaskellPackages;
+  haskellPackage = pkg;
+}
