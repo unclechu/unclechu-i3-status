@@ -1,3 +1,6 @@
+-- Author: Viacheslav Lotsmanov
+-- License: GPLv3 https://raw.githubusercontent.com/unclechu/unclechu-i3-status/master/LICENSE
+
 {-# LANGUAGE UnicodeSyntax, PackageImports, LambdaCase, ScopedTypeVariables #-}
 
 module UnclechuI3Status.Utils
