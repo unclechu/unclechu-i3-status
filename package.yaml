@@ -1,11 +1,12 @@
 name:         unclechu-i3-status
+synopsis:     My own status line generator for i3 window manager
 license:      GPL-3
 license-file: LICENSE
-homepage:     https://github.com/unclechu/unclechu-i3-status
 author:       Viacheslav Lotsmanov
-maintainer:   <lotsmanov89@gmail.com>
-copyright:    2017-2020 Viacheslav Lotsmanov
-category:     System
+maintainer:   Viacheslav Lotsmanov <lotsmanov89@gmail.com>
+copyright:    Copyright © 2017–2021 Viacheslav Lotsmanov
+category:     System, Desktop Environment
+github:       unclechu/unclechu-i3-status
 
 dependencies:
   - aeson
@@ -26,7 +27,6 @@ dependencies:
 
 ghc-options:
   - -Wall
-  - -O2
 
 library:
   source-dirs: src
