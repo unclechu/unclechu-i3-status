@@ -4,9 +4,9 @@ My own status line generator for [i3 window manager][i3wm].
 
 It also closely integrated with my own software such as
 [xlib-keys-hack][xlib-keys-hack].
-It gets states of indicators using specific [D-Bus][dbus] interface,
+It gets state of indicators using specific [D-Bus][dbus] interface,
 but any other application could implement such interface instead of
-[xlib-keys-hack][xlib-keys-hack] so it isn't hardly attached.
+[xlib-keys-hack][xlib-keys-hack].
 
 ## Usage
 
@@ -14,41 +14,36 @@ but any other application could implement such interface instead of
 
 Clone this repo, `cd` to it and run:
 
-``` bash
+``` sh
 nix-shell --run unclechu-i3-status
 ```
 
-It has both `default.nix` and `shell.nix`.
-So you can just fetch this repo:
+See also [shell.nix]’s arguments for available options.
+For instance if you want to enter a `nix-shell` with `cabal` available:
+
+``` sh
+nix-shell --arg withCabal true
+```
+
+#### NixOS
+
+You can add this application into your NixOS `configuration.nix` like this:
 
 ``` nix
+{ pkgs, ... }:
 let
-  pkgs = import <nixpkgs> {};
-
-  unclechu-i3-status = import (pkgs.fetchFromGitHub {
+  unclechu-i3-status-src = pkgs.fetchFromGitHub {
     owner = "unclechu";
     repo = "unclechu-i3-status";
-    rev = "0000000000000000000000000000000000000000";
+    rev = "ffffffffffffffffffffffffffffffffffffffff"; # Git commit hash
     sha256 = "0000000000000000000000000000000000000000000000000000";
-  }) { inherit pkgs; };
+  };
+
+  unclechu-i3-status = pkgs.callPackage unclechu-i3-status-src {};
 in
- …
-```
-
-And either add it to `environment.systemPackages` in your
-`/etc/nixos/configuration.nix`:
-
-``` nix
-environment.systemPackages = [
-  # …
-  unclechu-i3-status
-];
-```
-
-Or refer to the executable like this in order to call it:
-
-``` nix
-"${unclechu-i3-status}/bin/unclechu-i3-status"
+{
+  environment.systemPackages = [ unclechu-i3-status ];
+}
 ```
 
 #### Use it with [i3wm]
@@ -58,15 +53,28 @@ make this dependency be specifically addressed to [i3wm] (in your
 `/etc/nixos/configuration.nix`):
 
 ``` nix
-services.xserver.windowManager.i3.extraPackages = [
-  pkgs.i3status
-  unclechu-i3-status
-];
+{ pkgs, ... }:
+let
+  unclechu-i3-status-src = pkgs.fetchFromGitHub {
+    owner = "unclechu";
+    repo = "unclechu-i3-status";
+    rev = "ffffffffffffffffffffffffffffffffffffffff"; # Git commit hash
+    sha256 = "0000000000000000000000000000000000000000000000000000";
+  };
+
+  unclechu-i3-status = pkgs.callPackage unclechu-i3-status-src {};
+in
+{
+  services.xserver.windowManager.i3.extraPackages = [
+    pkgs.i3status
+    unclechu-i3-status
+  ];
+}
 ```
 
 ### With Stack
 
-```bash
+``` sh
 stack build
 stack install
 ```
@@ -74,14 +82,14 @@ stack install
 At this point make sure you have `~/.local/bin` in `PATH` environment variable
 when [i3][i3wm] starts. You could do so by adding this to your `~/.profile`:
 
-```sh
+``` sh
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
 But `~/.profile` must be evaluated at X11 session initialization step in your
 X11 config, for example it could be:
 
-```bash
+``` sh
 grep -F '.profile' /etc/X11/xinit/xinitrc-common
 ## [ -r $HOME/.profile ] && . $HOME/.profile
 ```
@@ -89,7 +97,7 @@ grep -F '.profile' /etc/X11/xinit/xinitrc-common
 Then, when you make sure `unclechu-i3-status` executable is available when
 [i3][i3wm] starts, you could add this to `~/.config/i3/config`:
 
-```conf
+``` conf
 bar {
   status_command unclechu-i3-status
 }
@@ -106,3 +114,5 @@ Viacheslav Lotsmanov
 [i3wm]: https://i3wm.org/
 [xlib-keys-hack]: https://github.com/unclechu/xlib-keys-hack
 [dbus]: https://www.freedesktop.org/wiki/Software/dbus/
+
+[shell.nix]: shell.nix
