@@ -1,4 +1,4 @@
-resolver: lts-15.3 # ghc-8.8.2
+resolver: lts-19.9 # ghc-9.0.2
 system-ghc: false
 
 packages:
@@ -6,3 +6,16 @@ packages:
 
 extra-deps:
   - hsc2hs-0.68.4
+
+nix:
+  enable: true
+  packages:
+    - xorg.libX11
+    - xorg.libXrandr
+    - xorg.libXScrnSaver
+    - xorg.libXtst
+    - xorg.libXext
+    - libxml2
+    - gmp
+    - zlib
+    - dbus

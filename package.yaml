@@ -4,12 +4,12 @@ license:      GPL-3
 license-file: LICENSE
 author:       Viacheslav Lotsmanov
 maintainer:   Viacheslav Lotsmanov <lotsmanov89@gmail.com>
-copyright:    Copyright © 2017–2021 Viacheslav Lotsmanov
+copyright:    Copyright © 2017–2022 Viacheslav Lotsmanov
 category:     System, Desktop Environment
 github:       unclechu/unclechu-i3-status
 
 dependencies:
-  - aeson
+  - aeson >=2.0.0.0
   - attoparsec
   - base
   - base-unicode-symbols
@@ -17,12 +17,10 @@ dependencies:
   - containers
   - data-default
   - dbus
-  - directory
   - process
   - qm-interpolated-string
   - time
   - unix
-  - unordered-containers
   - X11
 
 ghc-options:

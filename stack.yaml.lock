@@ -5,15 +5,15 @@
 
 packages:
 - completed:
-    hackage: hsc2hs-0.68.4@sha256:9b54e07645b1be27c8cd80d8b077284e49b1df991338f463ac32739c588d129d,2441
     pantry-tree:
-      size: 1259
       sha256: b5e61c36f3318e619276e66af567990314ab41b24de8b533d32891f702de018b
+      size: 1259
+    hackage: hsc2hs-0.68.4@sha256:9b54e07645b1be27c8cd80d8b077284e49b1df991338f463ac32739c588d129d,2441
   original:
     hackage: hsc2hs-0.68.4
 snapshots:
 - completed:
-    size: 491373
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/15/3.yaml
-    sha256: 29e9ff61b8bf4b4fcff55cde3ac106ebb971f0d21331dccac9eee63374fa6ca8
-  original: lts-15.3
+    sha256: 190a93d09d9d7bccc78a0f00d6fc0350eed76bc533611e5971202800805dd00e
+    size: 618507
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/19/9.yaml
+  original: lts-19.9

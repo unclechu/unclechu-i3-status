@@ -39,7 +39,7 @@ import "aeson"        Data.Aeson ( Value (Object)
                                  , genericToJSON
                                  , genericParseJSON
                                  )
-import qualified "unordered-containers" Data.HashMap.Strict as HM
+import qualified "aeson" Data.Aeson.KeyMap as KM
 
 import qualified "dbus" DBus
 import qualified "dbus" DBus.Internal.Types as DBusInternal
@@ -254,25 +254,25 @@ data ChangeEvent
 
 instance FromJSON ChangeEvent where
   parseJSON json@(Object obj) =
-    case HM.lookup "change" obj of
+    case KM.lookup "change" obj of
          Nothing → typeMismatch "ChangeEvent" json
 
          Just "focus" → do
            tag ←
-             if | HM.member "container" obj → pure "WindowFocusEvent"
-                | HM.member "current"   obj → pure "WorkspaceFocusEvent"
+             if | KM.member "container" obj → pure "WindowFocusEvent"
+                | KM.member "current"   obj → pure "WorkspaceFocusEvent"
                 | otherwise                 → typeMismatch "ChangeEvent" json
 
            genericParseJSON defaultOptions $
-             Object $ HM.insert "tag" tag obj
+             Object $ KM.insert "tag" tag obj
 
          Just "title" →
            genericParseJSON defaultOptions $
-             Object $ HM.insert "tag" "WindowTitleEvent" obj
+             Object $ KM.insert "tag" "WindowTitleEvent" obj
 
          Just "close" →
            genericParseJSON defaultOptions $
-             Object $ HM.insert "tag" "WindowCloseEvent" obj
+             Object $ KM.insert "tag" "WindowCloseEvent" obj
 
          Just _ → pure $ OtherEvent json
 
