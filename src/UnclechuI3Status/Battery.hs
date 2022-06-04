@@ -91,14 +91,14 @@ setUpBatteryIndicator updateHandler = do
     -- Method call to gets a property of a battery device
     getPropCall ∷ IsVariant α ⇒ Client → ObjectPath → UPowerPropName → IO α
     getPropCall client batteryObjPath propName =
-      call_ client propCall <&!> \reply →
+      call_ client propCall >>= \reply →
         case methodReturnBody reply of
 
              [x] → case fromVariant x >>= fromVariant of
-                        Nothing → error [qms| Unexpected UPower reply: {x} |]
-                        Just y  → y
+                        Nothing → fail [qms| Unexpected UPower reply: {x} |]
+                        Just y  → pure y
 
-             x   → error [qms| Unexpected UPower reply: {x} |]
+             x   → fail [qms| Unexpected UPower reply: {x} |]
 
       where
         propCall =
@@ -127,7 +127,7 @@ setUpBatteryIndicator updateHandler = do
                     )
 
         handler x =
-          error [qms| Unexpected UPower property changed signal body: {x} |]
+          fail [qms| Unexpected UPower property changed signal body: {x} |]
 
         rule
           = matchAny
