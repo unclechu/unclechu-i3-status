@@ -27,8 +27,8 @@ import "process" System.Process
   ( CreateProcess (std_in, std_out, std_err)
   , StdStream (NoStream, Inherit, CreatePipe)
   , proc
-  , createProcess
   , waitForProcess
+  , withCreateProcess
   )
 
 -- local imports
@@ -48,16 +48,16 @@ subscribeToFocusedWindowTitleUpdates
   -- ^ Current/initial focused window title and thread handle
 subscribeToFocusedWindowTitleUpdates updateCallback = do
   (initialTree ∷ Either String WindowTree) ← do
-    (Nothing, Just hOut, _, procHandle) ←
-      let args = ["-t", "get_tree"]
-       in createProcess (proc "i3-msg" args)
-            { std_in  = NoStream
-            , std_out = CreatePipe
-            , std_err = Inherit
-            }
-
-    result ← eitherDecodeStrict' <$> hGetContents hOut
-    result <$ waitForProcess procHandle
+    let
+      procSpec =
+        (proc "i3-msg" ["-t", "get_tree"])
+          { std_in  = NoStream
+          , std_out = CreatePipe
+          , std_err = Inherit
+          }
+    withCreateProcess procSpec $ \Nothing (Just hOut) _ procHandle → do
+      result ← eitherDecodeStrict' <$> hGetContents hOut
+      result <$ waitForProcess procHandle
 
   (initTitle ∷ Maybe WindowTitle) ←
     case initialTree of
@@ -71,23 +71,23 @@ subscribeToFocusedWindowTitleUpdates updateCallback = do
 
         in WindowTitle ∘ title <$> windowProps
 
-  (Nothing, Just hOut, _, _) ←
-    let args = ["-t", "subscribe", "-m", [qn| ["window", "workspace"] |]]
-     in createProcess (proc "i3-msg" args)
+  threadHandle ← Async.async $ do
+    let
+      procSpec =
+        (proc "i3-msg" ["-t", "subscribe", "-m", [qn| ["window", "workspace"] |]])
           { std_in  = NoStream
           , std_out = CreatePipe
           , std_err = Inherit
           }
-
-  threadHandle ← Async.async . forever $
-    hGetLine hOut
-      <&> eitherDecodeStrict'
-      >>= either (fail ∘ ("Error while parsing window title event: " ⋄)) pure
-      >>= getFocusedWindowTitle • \case
-            Ignore → pure ()
-            FocusedWindowNotFound → updateCallback Nothing
-            FocusedWindowClosed → updateCallback Nothing
-            FocusedWindowTitle title → updateCallback ∘ Just $ title
+    withCreateProcess procSpec $ \Nothing (Just hOut) _ _ →
+      forever $ hGetLine hOut
+        <&> eitherDecodeStrict'
+        >>= either (fail ∘ ("Error while parsing window title event: " ⋄)) pure
+        >>= getFocusedWindowTitle • \case
+              Ignore → pure ()
+              FocusedWindowNotFound → updateCallback Nothing
+              FocusedWindowClosed → updateCallback Nothing
+              FocusedWindowTitle title → updateCallback ∘ Just $ title
 
   pure (initTitle, threadHandle)
 
