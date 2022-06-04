@@ -83,8 +83,8 @@ setUpBatteryIndicator updateHandler = do
        Nothing → pure Nothing
        Just !x → do
          unsubscriber ← removeMatch client <$> catchUpdate client x
-         chargeLeft   ← getPropCall client x "Percentage"
-         chargeState  ← getPropCall client x "State"
+         chargeLeft   ← getPropCall client x . show $ Percentage
+         chargeState  ← getPropCall client x . show $ State
          pure $ Just ((chargeLeft, chargeState), unsubscriber)
 
   where
@@ -111,7 +111,7 @@ setUpBatteryIndicator updateHandler = do
     catchUpdate ∷ Client → ObjectPath → IO SignalHandler
     catchUpdate client betteryObj = addMatch client rule $ handler ∘ signalBody
       where
-        propsToWatch = ["Percentage", "State"] ∷ [String]
+        propsToWatch = show <$> [minBound .. maxBound ∷ WatchedProp]
 
         handler [ fromVariant → Just ("org.freedesktop.UPower.Device" ∷ String)
 
@@ -122,9 +122,20 @@ setUpBatteryIndicator updateHandler = do
                 , fromVariant → Just (_ ∷ [Variant])
                 ]
                 = updateHandler
-                    ( fromVariant =<< Map.lookup "Percentage" props
-                    , fromVariant =<< Map.lookup "State"      props
+                    ( fromVariant =<< Map.lookup (show Percentage) props
+                    , fromVariant =<< Map.lookup (show State)      props
                     )
+
+        -- Ignore not watched properties
+        handler [ fromVariant → Just ("org.freedesktop.UPower.Device" ∷ String)
+
+                , fromVariant →
+                    Just (Map.keys → any (∈ propsToWatch) → False)
+                      ∷ Maybe (Map.Map String Variant)
+
+                , fromVariant → Just (_ ∷ [Variant])
+                ]
+                = pure ()
 
         handler x =
           fail [qms| Unexpected UPower property changed signal body: {x} |]
@@ -135,3 +146,7 @@ setUpBatteryIndicator updateHandler = do
           , matchInterface = Just "org.freedesktop.DBus.Properties"
           , matchMember    = Just "PropertiesChanged"
           }
+
+
+data WatchedProp = Percentage | State
+  deriving (Eq, Show, Enum, Bounded)
