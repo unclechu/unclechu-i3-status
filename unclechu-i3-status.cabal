@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: dbaae5c02dc60d0f949cd63590db17137880e9b5d21452daf0980b7938823062
+-- hash: 78f717ad2093c545584fd40792290bf642a237279762ae72bff2c2bfbc4c3a49
 
 name:           unclechu-i3-status
 version:        0.0.0
@@ -27,11 +27,11 @@ library
   exposed-modules:
       Main
       UnclechuI3Status.Battery
+      UnclechuI3Status.EventSubscriber.WindowTitle
       UnclechuI3Status.ParentProc
       UnclechuI3Status.Render
       UnclechuI3Status.Types
       UnclechuI3Status.Utils
-      UnclechuI3Status.WindowTitle
       UnclechuI3Status.X
   other-modules:
       Paths_unclechu_i3_status
@@ -61,11 +61,11 @@ executable unclechu-i3-status
   main-is: Main.hs
   other-modules:
       UnclechuI3Status.Battery
+      UnclechuI3Status.EventSubscriber.WindowTitle
       UnclechuI3Status.ParentProc
       UnclechuI3Status.Render
       UnclechuI3Status.Types
       UnclechuI3Status.Utils
-      UnclechuI3Status.WindowTitle
       UnclechuI3Status.X
       Paths_unclechu_i3_status
   hs-source-dirs:

@@ -15,7 +15,7 @@ import                Prelude.Unicode
 import "data-default" Data.Default (def)
 import "base"         Data.Word (Word8, Word32)
 import "base"         Data.Fixed (Pico)
-import "base"         Data.Maybe (fromMaybe, listToMaybe, catMaybes)
+import "base"         Data.Maybe (fromMaybe)
 import "base"         Data.Function (fix)
 import "aeson"        Data.Aeson (encode, decodeStrict)
 import "bytestring"   Data.ByteString.Char8 (getLine, uncons)
@@ -34,15 +34,13 @@ import "time"         Data.Time.LocalTime
                         , zonedTimeToUTC
                         )
 
-import "qm-interpolated-string" Text.InterpolatedString.QM (qm, qms)
+import "qm-interpolated-string" Text.InterpolatedString.QM (qms)
 
 import "base" Control.Monad (when, forever, guard, void, join)
 import "base" Control.Applicative ((<|>))
 import "base" Control.Concurrent (forkIO, threadDelay)
 import "base" Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
 import qualified "async" Control.Concurrent.Async as Async
-
-import "base" System.IO (stderr, hPutStrLn, hFlush)
 
 import "unix" System.Posix.Signals ( installHandler
                                    , Handler (Catch)
@@ -89,8 +87,12 @@ import UnclechuI3Status.Battery (setUpBatteryIndicator)
 import UnclechuI3Status.ParentProc (dieWithParent)
 import UnclechuI3Status.Render (render)
 import UnclechuI3Status.Utils
-import UnclechuI3Status.WindowTitle (setUpWindowTitle)
 import UnclechuI3Status.X (initThreads, fakeKeyEvent)
+
+import UnclechuI3Status.EventSubscriber.WindowTitle
+  ( WindowTitle (..)
+  , subscribeToFocusedWindowTitleUpdates
+  )
 
 import UnclechuI3Status.Types
   ( State (..)
@@ -98,11 +100,6 @@ import UnclechuI3Status.Types
   , ClickEvent (..)
   , XmonadrcIfaceParams (..)
   , XlibKeysHackIfaceParams (..)
-  , ChangeEvent (..)
-  , EventContainer (..)
-  , EventContainerWindowProperties (..)
-  , EventWorkspace (..)
-  , WindowTree (..)
   )
 
 
@@ -337,45 +334,15 @@ main = do
       put $ Just $ \s → s
         { battery = battery s >>= Just ∘ (,chargeState) ∘ fst }
 
-  !windowTitleData ← setUpWindowTitle $ \case
-    Left msg → do
-      hPutStrLn stderr [qm| Error while parsing window title event: {msg} |]
-      hFlush stderr
-      put $ Just $ \s → s { windowTitle = Nothing }
-    Right ev → case ev of
-      WindowFocusEvent { container } →
-        when (focused (container ∷ EventContainer)) $
-          put $ Just $ \s → s
-            { windowTitle = Just $
-                title $ windowProperties (container ∷ EventContainer)
-            }
-      WindowTitleEvent { container } →
-        when (focused (container ∷ EventContainer)) $
-          put $ Just $ \s → s
-            { windowTitle = Just $
-                title $ windowProperties (container ∷ EventContainer)
-            }
-      WindowCloseEvent { container } →
-        when (focused (container ∷ EventContainer)) $
-          put $ Just $ \s → s { windowTitle = Nothing }
-
-      WorkspaceFocusEvent { current } → let
-        f x@WindowTree { focused = True } = Just x
-        f WindowTree { nodes } = firstFocused nodes
-
-        firstFocused = listToMaybe ∘ catMaybes ∘ map f
-        top = firstFocused $ nodes (current ∷ EventWorkspace)
-        t = top >>= \x → title <$> windowProperties (x ∷ WindowTree)
-
-        in put $ Just $ \s → s { windowTitle = t }
-
-      OtherEvent _ → pure ()
+  (initialFocusedWindowTitle, focusedWindowTitleuhreadHandle) ←
+    subscribeToFocusedWindowTitleUpdates $
+      \x → put . Just $ \s → s { windowTitle = unWindowTitle <$> x }
 
   let defState ∷ State
       defState
         = def
         { battery     = fst <$> batteryData
-        , windowTitle = fst windowTitleData
+        , windowTitle = unWindowTitle <$> initialFocusedWindowTitle
         }
 
   stateRef ← newIORef defState
@@ -418,7 +385,7 @@ main = do
 
   -- Handle POSIX signals to terminate application
   let terminate = do maybe (pure ()) snd batteryData -- unsubscribe
-                     snd windowTitleData -- unsubscribe
+                     Async.uninterruptibleCancel focusedWindowTitleuhreadHandle
                      mapM_ (removeMatch client) sigHandlers
                      _ ← releaseName client
                        $ busName (def ∷ XmonadrcIfaceParams) dpyView
