@@ -19,7 +19,6 @@ import "base"         Data.Maybe (fromMaybe, listToMaybe, catMaybes)
 import "base"         Data.Function (fix)
 import "aeson"        Data.Aeson (encode, decodeStrict)
 import "bytestring"   Data.ByteString.Char8 (getLine, uncons)
-import "bytestring"   Data.ByteString.Lazy.Char8 (append)
 import "base"         Data.IORef (newIORef, readIORef, writeIORef)
 import "time"         Data.Time.Clock (UTCTime)
 
@@ -193,7 +192,7 @@ stateModifyHandler reportCallback getNextState writeState initialState = go wher
 
     newStateHandler = newState <$ do
       writeState newState
-      echo $ "," `append` render newState
+      echo $ "," ⋄ render newState
 
       if
         | kbdLayout newState ≢ kbdLayout prevState →
