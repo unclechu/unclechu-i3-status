@@ -42,7 +42,7 @@ import qualified "base" Data.IORef as IORef
 
 import "time" Data.Time.Format (FormatTime, formatTime, defaultTimeLocale)
 
-import "base" Control.Monad ((<$!>))
+import "base" Control.Monad ((<$!>), void)
 import "base" Control.Concurrent (ThreadId, forkIO, threadDelay, killThread)
 
 import "base" System.IO ( Handle, IOMode (ReadWriteMode)
@@ -93,7 +93,7 @@ getDisplayName dpy = f <$> displayString dpy
 spawnProc ∷ FilePath → [String] → IO ()
 spawnProc cmd args = do
   devNull <- openFile "/dev/null" ReadWriteMode
-  () <$ createProcess (proc cmd args)
+  void $ createProcess (proc cmd args)
     { std_in      = UseHandle devNull
     , std_out     = UseHandle devNull
     , std_err     = UseHandle devNull

@@ -14,13 +14,12 @@ import                Prelude.Unicode
 
 import "data-default" Data.Default (def)
 import "base"         Data.Word (Word8, Word32)
-import "base"         Data.Tuple (swap)
 import "base"         Data.Fixed (Pico)
 import "base"         Data.Maybe (fromMaybe, listToMaybe, catMaybes)
 import "base"         Data.Function (fix)
 import "aeson"        Data.Aeson (encode, decodeStrict)
 import "bytestring"   Data.ByteString.Char8 (getLine, uncons)
-import "bytestring"   Data.ByteString.Lazy.Char8 (ByteString, append)
+import "bytestring"   Data.ByteString.Lazy.Char8 (append)
 import "base"         Data.IORef (newIORef, readIORef, writeIORef)
 import "time"         Data.Time.Clock (UTCTime)
 
@@ -34,7 +33,6 @@ import "time"         Data.Time.LocalTime
 
                         , getZonedTime
                         , zonedTimeToUTC
-                        , utcToZonedTime
                         )
 
 import "qm-interpolated-string" Text.InterpolatedString.QM (qm, qms)
@@ -43,9 +41,9 @@ import "base" Control.Monad (when, forever, guard, void, join)
 import "base" Control.Applicative ((<|>))
 import "base" Control.Concurrent (forkIO, threadDelay)
 import "base" Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
+import qualified "async" Control.Concurrent.Async as Async
 
 import "base" System.IO (stderr, hPutStrLn, hFlush)
-import "base" System.Exit (die, exitSuccess)
 
 import "unix" System.Posix.Signals ( installHandler
                                    , Handler (Catch)
@@ -88,119 +86,26 @@ import "dbus" DBus.Client ( connectSession
 
 -- local imports
 
-import UnclechuI3Status.Utils
-import UnclechuI3Status.X (initThreads, fakeKeyEvent)
-import UnclechuI3Status.ParentProc (dieWithParent)
 import UnclechuI3Status.Battery (setUpBatteryIndicator)
+import UnclechuI3Status.ParentProc (dieWithParent)
+import UnclechuI3Status.Render (render)
+import UnclechuI3Status.Utils
 import UnclechuI3Status.WindowTitle (setUpWindowTitle)
-import UnclechuI3Status.Types ( State (..)
-                              , ProtocolInitialization (..)
-                              , Unit (..)
-                              , ClickEvent (..)
-                              , XmonadrcIfaceParams (..)
-                              , XlibKeysHackIfaceParams (..)
-                              , UPowerBatteryState (..)
-                              , ChangeEvent (..)
-                              , EventContainer (..)
-                              , EventContainerWindowProperties (..)
-                              , EventWorkspace (..)
-                              , WindowTree (..)
-                              )
+import UnclechuI3Status.X (initThreads, fakeKeyEvent)
 
+import UnclechuI3Status.Types
+  ( State (..)
+  , ProtocolInitialization (..)
+  , ClickEvent (..)
+  , XmonadrcIfaceParams (..)
+  , XlibKeysHackIfaceParams (..)
+  , ChangeEvent (..)
+  , EventContainer (..)
+  , EventContainerWindowProperties (..)
+  , EventWorkspace (..)
+  , WindowTree (..)
+  )
 
-view ∷ State → ByteString
-view s
-  = encode
-  $ maybe mempty (\x → [windowTitleView x, _separate]) (windowTitle s)
-  ⋄
-  [ numLockView
-  , capsLockView
-  , alternativeView
-  , _separate
-  ]
-  ⋄ kbdLayoutView
-  ⋄ [ _separate, dateAndTimeView ]
-  ⋄ maybe mempty (\x → [_separate, batteryView x]) (battery s)
-
-  where numLockView, capsLockView, alternativeView ∷ Unit
-        dateAndTimeView, _separate ∷ Unit
-        kbdLayoutView ∷ [Unit]
-
-        numLockView = let isOn = numLock s
-          in def { fullText = showNumLock isOn
-                 , color    = Just $ colorOfNumLock isOn
-                 , name     = Just "numlock"
-                 }
-
-        capsLockView = let isOn = capsLock s
-          in def { fullText = showCapsLock isOn
-                 , color    = Just $ colorOfCapsLock isOn
-                 , name     = Just "capslock"
-                 }
-
-        alternativeView = let alternativeState = alternative s
-          in def { fullText = either (\n → "%UNKNOWN:" ⋄ show n ⋄ "%") Prelude.id
-                            $ showAlternativeState alternativeState
-
-                 , color    = either (const Nothing) Just
-                            $ colorOfAlternativeState alternativeState
-
-                 , name     = Just "alternative"
-                 }
-
-        -- | Layout names are just hardcoded,
-        --   they may be not in this exact order.
-        kbdLayoutView = render where
-          f nameSuffix fullText (Just → color) =
-            def { name = Just ("kbdlayout-" ⋄ nameSuffix), fullText, color }
-
-          render = case kbdLayout s of
-            Nothing → pure $ f "UNDEFINED" "%UNDEFINED%" "#eeeeee"
-            Just (Left Nothing) → pure $ f "ERROR" "%ERROR%" "#ff0000"
-            Just (Left (Just n)) →
-              pure $ f "UNKNOWN" ("%UNKNOWN:" ⋄ show n ⋄ "%") "#eeeeee"
-            Just (Right layout) →
-              [minBound .. maxBound ∷ Layout] <&> \x →
-                f (show x) (show x) $
-                  if x ≡ layout then colorOfLayout layout else "#666666"
-
-        dateAndTimeView =
-          maybe def { fullText = "…" } (set ∘ render) $ lastTime s
-          where render = renderDate ∘ uncurry utcToZonedTime ∘ swap
-                set x  = def { fullText = x, name = Just "datentime" }
-
-        batteryView (chargeLeft, batteryState) = def
-          { -- Rounding because floating point is always zero
-            fullText = icon ⋄ show (round chargeLeft ∷ Word8) ⋄ "%"
-
-          , name     = Just "battery"
-
-          , color    = Just
-                     $ case batteryState of
-                            Charging     → connectedToAdapterColor
-                            FullyCharged → connectedToAdapterColor
-                            _ | chargeLeft ≥ 80 → "#00ff00"
-                              | chargeLeft < 20 → "#ff0000"
-                              | otherwise       → "#ffff00"
-
-          } where connectedToAdapterColor = "#00ffff"
-                  dischargingIcon = "🔋"
-                  chargingIcon    = "⚡"
-
-                  icon = case batteryState of
-                              Charging     → chargingIcon
-                              FullyCharged → chargingIcon
-                              _            → dischargingIcon
-
-        windowTitleView x = def
-          { fullText = x
-          , name     = Just "window-title"
-          }
-
-        _separate = def { fullText = "/", color = Just "#666666" }
-        -- separateAfter x = x { separator           = Just True
-        --                     , separatorBlockWidth = Just 20
-        --                     }
 
 
 fetchDateAndTime ∷ IO (Pico, UTCTime, TimeZone)
@@ -252,6 +157,72 @@ handleClickEvent iface (\x → name (x ∷ ClickEvent) → Just name') = case na
 handleClickEvent _ _ = pure ()
 
 
+type Message = String
+type Color = String
+
+-- | Reactive loop that gets state modifier from an @MVar@
+--   to update the state and re-render it (if it's @Just@)
+--   or terminate the application (it it's @Nothing@).
+--
+-- This function should be ran in its own thread and it should be the only
+-- thread that writes to stdout.
+stateModifyHandler
+  ∷ (Message → Color → IO ())
+  -- ^ Report via Dzen (keyboard layout code or mode like “num” for num lock)
+  → IO (Maybe (State → State))
+  -- ^ Read next application state modification function
+  --   (blocks where there are no updates to handle;
+  --   @Nothing@ we are done with the handling, application ends)
+  → (State → IO ())
+  -- ^ Write new application state (after receiving an update for it)
+  → State
+  → IO ()
+stateModifyHandler reportCallback getNextState writeState initialState = go where
+  go = void $ echo (render initialState) >> loop initialState
+  loop s = getNextState >>= handle s >>= maybe (pure Nothing) loop
+  darn = reportCallback "ERR" "#ff0000"
+
+  -- | Handle one state modification
+  --
+  -- @Nothing@ means the end of the function, for the both @Maybe@ arguments.
+  handle ∷ State → Maybe (State → State) → IO (Maybe State)
+  handle _ Nothing = Nothing <$ echo "]"
+  handle prevState (Just stateModifier) = Just <$> f where
+    f = if newState ≡ prevState then pure prevState else newStateHandler
+    newState = stateModifier prevState
+
+    newStateHandler = newState <$ do
+      writeState newState
+      echo $ "," `append` render newState
+
+      if
+        | kbdLayout newState ≢ kbdLayout prevState →
+            case kbdLayout newState of
+              Just (Right layout) →
+                reportCallback (show layout) (colorOfLayout layout)
+              _ → darn
+
+        | alternative newState ≢ alternative prevState
+        ∧ ( fmap snd (alternative newState)  ≡ Just True
+          ∨ fmap snd (alternative prevState) ≡ Just True
+          ) →
+            either (const darn) (uncurry reportCallback) $ (,)
+              <$> (showAlternativeState . alternative) newState
+              <*> (colorOfAlternativeState . alternative) newState
+
+        | capsLock newState ≢ capsLock prevState →
+            reportCallback
+              (showCapsLock . capsLock $ newState)
+              (colorOfCapsLock . capsLock $ newState)
+
+        | numLock newState ≢ numLock prevState →
+            reportCallback
+              (showNumLock . numLock $ newState)
+              (colorOfNumLock . numLock $ newState)
+
+        | otherwise → pure ()
+
+
 main ∷ IO ()
 main = do
   initThreads
@@ -268,9 +239,11 @@ main = do
   requestName client (busName (def ∷ XmonadrcIfaceParams) dpyView) []
     >>= \reply →
           when (reply ≢ NamePrimaryOwner) $
-            die [qms| Requesting name
-                      '{busName (def ∷ XmonadrcIfaceParams) dpyView}'
-                      error: {reply} |]
+            fail [qms|
+              Requesting name
+              '{busName (def ∷ XmonadrcIfaceParams) dpyView}'
+              error: {reply}
+            |]
 
   mVar ← newEmptyMVar
 
@@ -464,48 +437,6 @@ main = do
 
   dzen'
     ← newIORef Nothing <&>
-    \ ref text color → void $ forkIO $ dzen ref text color
+    \ ref text color → void . Async.async $ dzen ref text color
 
-  let darn = dzen' "ERR" "#ff0000"
-
-  -- Main thread is reactive loop that gets state modifier from another thread
-  -- to update the state and re-render it (if it's Just) or terminate the
-  -- application (it it's Nothing).
-  let handle ∷ State → Maybe (State → State) → IO State
-      handle prevState Nothing = prevState <$ echo "]" >> exitSuccess
-
-      handle prevState (Just stateModifier) = go where
-        go = if newState ≡ prevState then pure prevState else newStateHandler
-        newState = stateModifier prevState
-
-        newStateHandler = newState <$ do
-          writeIORef stateRef newState
-          echo $ "," `append` view newState
-
-          if | kbdLayout newState ≢ kbdLayout prevState →
-                 case kbdLayout newState of
-                      Just (Right layout) →
-                        dzen' (show layout) (colorOfLayout layout)
-                      _ → darn
-
-             | alternative newState ≢ alternative prevState
-             ∧ ( fmap snd (alternative newState)  ≡ Just True
-               ∨ fmap snd (alternative prevState) ≡ Just True
-               ) →
-                 either (const darn) (uncurry dzen') $ (,)
-                   <$> showAlternativeState    (alternative newState)
-                   <*> colorOfAlternativeState (alternative newState)
-
-             | capsLock newState ≢ capsLock prevState →
-                 dzen' (showCapsLock    $ capsLock newState)
-                       (colorOfCapsLock $ capsLock newState)
-
-             | numLock newState ≢ numLock prevState →
-                 dzen' (showNumLock    $ numLock newState)
-                       (colorOfNumLock $ numLock newState)
-
-             | otherwise → pure ()
-
-      next s = takeMVar mVar >>= handle s >>= next
-
-   in () <$ echo (view defState) >> next defState
+  stateModifyHandler dzen' (takeMVar mVar) (writeIORef stateRef) defState

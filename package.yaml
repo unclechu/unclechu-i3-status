@@ -10,6 +10,7 @@ github:       unclechu/unclechu-i3-status
 
 dependencies:
   - aeson >=2.0.0.0
+  - async
   - attoparsec
   - base
   - base-unicode-symbols
@@ -23,8 +24,7 @@ dependencies:
   - unix
   - X11
 
-ghc-options:
-  - -Wall
+ghc-options: [-Wall]
 
 library:
   source-dirs: src
@@ -35,3 +35,4 @@ executables:
     source-dirs:  src
     main:         Main.hs
     dependencies: [unclechu-i3-status]
+    ghc-options:  [-threaded]
