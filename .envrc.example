@@ -1,0 +1,6 @@
+# Example configuration for direnv
+watch_file package.yaml
+watch_file unclechu-i3-status.cabal
+watch_file default.nix
+watch_file shell.nix
+use nix --arg buildExecutable false --arg withCabal true
