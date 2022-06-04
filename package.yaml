@@ -28,7 +28,6 @@ ghc-options:
 
 library:
   source-dirs: src
-  build-tools: [hsc2hs]
   extra-libraries: [Xtst]
 
 executables:
