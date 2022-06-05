@@ -1,12 +1,18 @@
 -- Author: Viacheslav Lotsmanov
 -- License: GPLv3 https://raw.githubusercontent.com/unclechu/unclechu-i3-status/master/LICENSE
 
-{-# LANGUAGE UnicodeSyntax, PackageImports, BangPatterns, ViewPatterns #-}
-{-# LANGUAGE OverloadedStrings, QuasiQuotes #-}
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PackageImports #-}
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE UnicodeSyntax #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module UnclechuI3Status.EventSubscriber.Battery
-     ( setUpBatteryIndicator
+     ( UPowerBatteryState (..)
+     , setUpBatteryIndicator
      ) where
 
 import "base" Data.Word (Word8)
@@ -17,33 +23,15 @@ import "qm-interpolated-string" Text.InterpolatedString.QM (qms)
 import qualified "containers" Data.Map.Strict as Map
 import qualified "attoparsec" Data.Attoparsec.ByteString.Char8 as Parsec
 
-import "dbus" DBus ( Signal (signalBody)
-                   , Variant
-                   , IsVariant (fromVariant, toVariant)
-                   , MethodCall (methodCallDestination, methodCallBody)
-                   , methodCall
-                   , MethodReturn (methodReturnBody)
-                   , ObjectPath
-                   , formatObjectPath
-                   )
+import "base" Control.Monad (void)
 
-import "dbus" DBus.Client ( Client
-                          , connectSystem
-                          , addMatch
-                          , removeMatch
-                          , matchAny
-                          , call_
-                          , SignalHandler
-                          , MatchRule ( matchPath
-                                      , matchInterface
-                                      , matchMember
-                                      )
-                          )
+import qualified "dbus" DBus
+import qualified "dbus" DBus.Internal.Types as DBusInternal
+import qualified "dbus" DBus.Client
 
 -- local imports
 
 import UnclechuI3Status.Utils
-import UnclechuI3Status.Types (UPowerBatteryState (..))
 
 
 type UPowerPropName = String
@@ -53,100 +41,161 @@ setUpBatteryIndicator
   → IO (Maybe ((Double, UPowerBatteryState), IO ())) -- Initial and unsubscriber
 
 setUpBatteryIndicator updateHandler = do
-  client ← connectSystem
+  client ← DBus.Client.connectSystem
 
   !batteryObjPath ←
-    call_ client ( methodCall "/org/freedesktop/UPower"
-                              "org.freedesktop.UPower"
-                              "EnumerateDevices"
-                 ) { methodCallDestination = Just "org.freedesktop.UPower" }
+    DBus.Client.call_
+      client
+      ( DBus.methodCall
+          "/org/freedesktop/UPower"
+          "org.freedesktop.UPower"
+          "EnumerateDevices"
+      ) { DBus.methodCallDestination = Just "org.freedesktop.UPower" }
 
       <&!> \reply → let
-             objPaths = [ y | Just x ← fromVariant <$> methodReturnBody reply
-                            , y ← (x ∷ [ObjectPath]) ]
+             objPaths =
+               [ y
+               | Just x ← DBus.fromVariant <$> DBus.methodReturnBody reply
+               , y ← (x ∷ [DBus.ObjectPath])
+               ]
 
              -- …/battery_BAT0
-             parser = ()
-               <$ Parsec.manyTill' Parsec.anyChar "/battery_BAT"
+             parser = void
+               $ Parsec.manyTill' Parsec.anyChar "/battery_BAT"
                <* (Parsec.decimal ∷ Parsec.Parser Word8)
                <* Parsec.endOfInput
 
-             batteryObjPath = find ( isRight
-                                   ∘ Parsec.parseOnly parser
-                                   ∘ fromString
-                                   ∘ formatObjectPath
-                                   ) objPaths ∷ Maybe ObjectPath
+             batteryObjPath
+               = find
+               ( isRight
+               ∘ Parsec.parseOnly parser
+               ∘ fromString
+               ∘ DBus.formatObjectPath
+               ) objPaths ∷ Maybe DBus.ObjectPath
 
              in batteryObjPath
 
   case batteryObjPath of
        Nothing → pure Nothing
        Just !x → do
-         unsubscriber ← removeMatch client <$> catchUpdate client x
-         chargeLeft   ← getPropCall client x . show $ Percentage
-         chargeState  ← getPropCall client x . show $ State
+         unsubscriber ← DBus.Client.removeMatch client <$> catchUpdate client x
+         chargeLeft   ← getPropCall client x ∘ show $ Percentage
+         chargeState  ← getPropCall client x ∘ show $ State
          pure $ Just ((chargeLeft, chargeState), unsubscriber)
 
   where
     -- Method call to gets a property of a battery device
-    getPropCall ∷ IsVariant α ⇒ Client → ObjectPath → UPowerPropName → IO α
-    getPropCall client batteryObjPath propName =
-      call_ client propCall >>= \reply →
-        case methodReturnBody reply of
+    getPropCall
+      ∷ DBus.IsVariant α
+      ⇒ DBus.Client.Client
+      → DBus.ObjectPath
+      → UPowerPropName
+      → IO α
+    getPropCall client batteryObjPath propName = go where
+      go = DBus.Client.call_ client propCall >>= DBus.methodReturnBody • \case
+        [x] → case DBus.fromVariant x >>= DBus.fromVariant of
+          Nothing → fail [qms| Unexpected UPower reply: {x} |]
+          Just y  → pure y
 
-             [x] → case fromVariant x >>= fromVariant of
-                        Nothing → fail [qms| Unexpected UPower reply: {x} |]
-                        Just y  → pure y
+        x → fail [qms| Unexpected UPower reply: {x} |]
 
-             x   → fail [qms| Unexpected UPower reply: {x} |]
-
-      where
-        propCall =
-          (methodCall batteryObjPath "org.freedesktop.DBus.Properties" "Get")
-            { methodCallDestination = Just "org.freedesktop.UPower"
-            , methodCallBody =
-                toVariant <$> ["org.freedesktop.UPower.Device", propName]
-            }
-
-    catchUpdate ∷ Client → ObjectPath → IO SignalHandler
-    catchUpdate client betteryObj = addMatch client rule $ handler ∘ signalBody
-      where
-        propsToWatch = show <$> [minBound .. maxBound ∷ WatchedProp]
-
-        handler [ fromVariant → Just ("org.freedesktop.UPower.Device" ∷ String)
-
-                , fromVariant →
-                    Just props@(Map.keys → any (∈ propsToWatch) → True)
-                      ∷ Maybe (Map.Map String Variant)
-
-                , fromVariant → Just (_ ∷ [Variant])
-                ]
-                = updateHandler
-                    ( fromVariant =<< Map.lookup (show Percentage) props
-                    , fromVariant =<< Map.lookup (show State)      props
-                    )
-
-        -- Ignore not watched properties
-        handler [ fromVariant → Just ("org.freedesktop.UPower.Device" ∷ String)
-
-                , fromVariant →
-                    Just (Map.keys → any (∈ propsToWatch) → False)
-                      ∷ Maybe (Map.Map String Variant)
-
-                , fromVariant → Just (_ ∷ [Variant])
-                ]
-                = pure ()
-
-        handler x =
-          fail [qms| Unexpected UPower property changed signal body: {x} |]
-
-        rule
-          = matchAny
-          { matchPath      = Just betteryObj
-          , matchInterface = Just "org.freedesktop.DBus.Properties"
-          , matchMember    = Just "PropertiesChanged"
+      propCall =
+        (DBus.methodCall batteryObjPath "org.freedesktop.DBus.Properties" "Get")
+          { DBus.methodCallDestination = Just "org.freedesktop.UPower"
+          , DBus.methodCallBody =
+              DBus.toVariant <$> ["org.freedesktop.UPower.Device", propName]
           }
 
+    catchUpdate
+      ∷ DBus.Client.Client
+      → DBus.ObjectPath
+      → IO DBus.Client.SignalHandler
+    catchUpdate client betteryObj = go where
+      go = DBus.Client.addMatch client rule $ handler ∘ DBus.signalBody
+      propsToWatch = show <$> [minBound .. maxBound ∷ WatchedProp]
+
+      handler
+        [ DBus.fromVariant → Just ("org.freedesktop.UPower.Device" ∷ String)
+
+        , DBus.fromVariant →
+            Just props@(Map.keys → any (∈ propsToWatch) → True)
+              ∷ Maybe (Map.Map String DBus.Variant)
+
+        , DBus.fromVariant → Just (_ ∷ [DBus.Variant])
+        ]
+        = updateHandler
+            ( DBus.fromVariant =<< Map.lookup (show Percentage) props
+            , DBus.fromVariant =<< Map.lookup (show State)      props
+            )
+
+      -- Ignore not watched properties
+      handler
+        [ DBus.fromVariant → Just ("org.freedesktop.UPower.Device" ∷ String)
+
+        , DBus.fromVariant →
+            Just (Map.keys → any (∈ propsToWatch) → False)
+              ∷ Maybe (Map.Map String DBus.Variant)
+
+        , DBus.fromVariant → Just (_ ∷ [DBus.Variant])
+        ]
+        = pure ()
+
+      handler x =
+        fail [qms| Unexpected UPower property changed signal body: {x} |]
+
+      rule
+        = DBus.Client.matchAny
+        { DBus.Client.matchPath = Just betteryObj
+        , DBus.Client.matchInterface = Just "org.freedesktop.DBus.Properties"
+        , DBus.Client.matchMember = Just "PropertiesChanged"
+        }
+
+
+-- * Types
 
 data WatchedProp = Percentage | State
   deriving (Eq, Show, Enum, Bounded)
+
+
+data UPowerBatteryState
+  = Unknown
+  | Charging
+  | Discharging
+  | Empty
+  | FullyCharged
+  | PendingCharge
+  | PendingDischarge
+  deriving (Eq, Show)
+
+instance Enum UPowerBatteryState where
+  toEnum = \case
+    1 → Charging
+    2 → Discharging
+    3 → Empty
+    4 → FullyCharged
+    5 → PendingCharge
+    6 → PendingDischarge
+    _ → Unknown
+
+  fromEnum = \case
+    Unknown          → 0
+    Charging         → 1
+    Discharging      → 2
+    Empty            → 3
+    FullyCharged     → 4
+    PendingCharge    → 5
+    PendingDischarge → 6
+
+instance DBus.IsVariant UPowerBatteryState where
+  toVariant
+    = DBusInternal.Variant
+    ∘ DBusInternal.ValueAtom
+    ∘ DBusInternal.AtomWord32
+    ∘ fromIntegral
+    ∘ fromEnum
+
+  fromVariant
+    ( DBusInternal.Variant
+    ( DBusInternal.ValueAtom
+    ( DBusInternal.AtomWord32 x ))) = Just ∘ toEnum ∘ fromIntegral $ x
+  fromVariant _ = Nothing

@@ -22,8 +22,8 @@ import "time" Data.Time.LocalTime (utcToZonedTime)
 
 -- Local imports
 
+import UnclechuI3Status.EventSubscriber.Battery (UPowerBatteryState (..))
 import UnclechuI3Status.Handler.AppState.Types (State (..))
-import UnclechuI3Status.Types (UPowerBatteryState (..))
 import UnclechuI3Status.Utils
 import UnclechuI3Status.Utils.Aeson (withFieldNamer)
 
@@ -156,21 +156,21 @@ _separate = def { fullText = "/", color = Just "#666666" }
 -- * Types
 
 data Unit
-   = Unit
-   { fullText ∷ String
-   , shortText ∷ Maybe String
-   , color ∷ Maybe String
-   , background ∷ Maybe String
-   , border ∷ Maybe String
-   , minWidth ∷ Maybe Word
-   , align ∷ Maybe String
-   , name ∷ Maybe String
-   , _instance ∷ Maybe String
-   , urgent ∷ Maybe Bool
-   , separator ∷ Maybe Bool
-   , separatorBlockWidth ∷ Maybe Word
-   , markup ∷ Maybe String
-   } deriving (Show, Eq, Generic)
+  = Unit
+  { fullText ∷ String
+  , shortText ∷ Maybe String
+  , color ∷ Maybe String
+  , background ∷ Maybe String
+  , border ∷ Maybe String
+  , minWidth ∷ Maybe Word
+  , align ∷ Maybe String
+  , name ∷ Maybe String
+  , _instance ∷ Maybe String
+  , urgent ∷ Maybe Bool
+  , separator ∷ Maybe Bool
+  , separatorBlockWidth ∷ Maybe Word
+  , markup ∷ Maybe String
+  } deriving (Show, Eq, Generic)
 
 instance Default Unit where
   def

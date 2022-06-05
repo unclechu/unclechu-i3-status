@@ -11,7 +11,6 @@ module UnclechuI3Status.Types
      , ClickEvent (..)
      , XmonadrcIfaceParams (..)
      , XlibKeysHackIfaceParams (..)
-     , UPowerBatteryState (..)
      , ChangeEvent (..)
      , EventContainer (..)
      , EventContainerWindowProperties (..)
@@ -35,7 +34,6 @@ import "aeson"        Data.Aeson ( Value (Object)
 import qualified "aeson" Data.Aeson.KeyMap as KM
 
 import qualified "dbus" DBus
-import qualified "dbus" DBus.Internal.Types as DBusInternal
 
 import UnclechuI3Status.Utils
 import UnclechuI3Status.Utils.Aeson (withFieldNamer)
@@ -108,49 +106,6 @@ instance Default XlibKeysHackIfaceParams where
     , busName       = DBus.busName_ ∘ ("com.github.unclechu.xlib_keys_hack." ⋄)
     , interfaceName = "com.github.unclechu.xlib_keys_hack"
     }
-
-
-data UPowerBatteryState
-   = Unknown
-   | Charging
-   | Discharging
-   | Empty
-   | FullyCharged
-   | PendingCharge
-   | PendingDischarge
-     deriving (Eq, Show)
-
-instance Enum UPowerBatteryState where
-  toEnum = \case
-    1 → Charging
-    2 → Discharging
-    3 → Empty
-    4 → FullyCharged
-    5 → PendingCharge
-    6 → PendingDischarge
-    _ → Unknown
-
-  fromEnum = \case
-    Unknown          → 0
-    Charging         → 1
-    Discharging      → 2
-    Empty            → 3
-    FullyCharged     → 4
-    PendingCharge    → 5
-    PendingDischarge → 6
-
-instance DBus.IsVariant UPowerBatteryState where
-  toVariant
-    = DBusInternal.Variant
-    ∘ DBusInternal.ValueAtom
-    ∘ DBusInternal.AtomWord32
-    ∘ fromIntegral
-    ∘ fromEnum
-
-  fromVariant ( DBusInternal.Variant
-              ( DBusInternal.ValueAtom
-              ( DBusInternal.AtomWord32 x ))) = Just $ toEnum $ fromIntegral x
-  fromVariant _ = Nothing
 
 
 data ChangeEvent
