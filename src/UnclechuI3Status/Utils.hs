@@ -25,8 +25,6 @@ module UnclechuI3Status.Utils
 
      , showAlternativeState
      , colorOfAlternativeState
-
-     , dzen
      ) where
 
 import Prelude hiding (putStrLn)
@@ -38,31 +36,19 @@ import "base" Data.Function ((&))
 import "base" Data.Functor ((<&>), ($>))
 import "base" Data.List (find)
 import "bytestring" Data.ByteString.Lazy.Char8 (ByteString, putStrLn)
-import qualified "base" Data.IORef as IORef
 
 import "time" Data.Time.Format (FormatTime, formatTime, defaultTimeLocale)
 
 import "base" Control.Monad ((<$!>), void)
-import "base" Control.Concurrent (ThreadId, forkIO, threadDelay, killThread)
 
-import "base" System.IO ( Handle, IOMode (ReadWriteMode)
-                        , stdout, hFlush, hPutStrLn, hClose, openFile
-                        )
+import "base" System.IO (IOMode (ReadWriteMode), stdout, hFlush, openFile)
 
-import "process" System.Process ( CreateProcess ( std_in
-                                                , std_out
-                                                , std_err
-                                                , new_session
-                                                )
-
-                                , StdStream (NoStream, CreatePipe, UseHandle)
-                                , ProcessHandle
-
-                                , proc
-                                , createProcess
-                                , getProcessExitCode
-                                , terminateProcess
-                                )
+import "process" System.Process
+  ( CreateProcess (std_in, std_out, std_err, new_session)
+  , StdStream (UseHandle)
+  , proc
+  , createProcess
+  )
 
 import "X11" Graphics.X11.Xlib (Display, displayString)
 
@@ -140,70 +126,3 @@ colorOfAlternativeState = \case
   Just (1, _) → Right "#ffff00"
   Just (2, _) → Right "#00ffff"
   Just (n, _) → Left n
-
-
-dzen
-  ∷ IORef.IORef (Maybe (ProcessHandle, Handle, ThreadId))
-  → String
-  → String
-  → IO ()
-
-dzen procRef text fgColor = do
-  let wmTitle = "unclechu-i3-status--keyboard-layout"
-  let timeoutSeconds = 1 ∷ Word
-  let (w, h, x, y) = (120, 120, -100, 100); w, h ∷ Word; x, y ∷ Int
-  let (bgColor, fgDefaultColor) = ("black", "white")
-  let (fontFamily, fontStyle) = ("Hack", "bold")
-
-  let fontSize ∷ Word
-      fontSize | length text ≤ 2 = 70
-               | length text ≡ 3 = 42
-               | length text ≡ 4 = 32
-               | otherwise       = 9
-
-  let fontStr (size ∷ Word)
-        = "-*-"
-        ⋄ fontFamily ⋄ "-"
-        ⋄ fontStyle  ⋄ "-*-*-*-"
-        ⋄ show size  ⋄ "-*-*-*-*-*-*-*"
-
-  let colorfulText = "^fn(" ⋄ fontStr fontSize ⋄ ")^fg(" ⋄ fgColor ⋄ ")" ⋄ text
-
-  let args = [ "-ta", "c"
-             , "-title-name", wmTitle
-             -- , "-p", show timeoutSeconds
-             , "-w", show w, "-h", show h
-             , "-x", show (if x < 0 then x − fromIntegral w else x)
-             , "-y", show (if y < 0 then y − fromIntegral h else y)
-             , "-bg", bgColor, "-fg", fgDefaultColor
-             , "-fn", fontStr 9
-             ]
-
-  let runKiller input procHandler = forkIO $ do
-        threadDelay $ fromIntegral timeoutSeconds × 1000 × 1000
-        hClose input >> terminateProcess procHandler
-
-  let getNewProc = do
-        (Just input, Nothing, Nothing, procHandler)
-          ← createProcess (proc "dzen2" args)
-          { std_in  = CreatePipe
-          , std_out = NoStream
-          , std_err = NoStream
-          }
-
-        threadId ← runKiller input procHandler
-        pure (procHandler, input, threadId)
-
-  (procHandler, input, threadId) ←
-    IORef.readIORef procRef >>= \case
-      Nothing → getNewProc
-      Just (procHandler, input, threadId) →
-        getProcessExitCode procHandler >>= \case
-          Just _ → killThread threadId >> getNewProc
-          Nothing → do
-            killThread threadId
-            newThreadId ← runKiller input procHandler
-            pure (procHandler, input, newThreadId)
-
-  _ ← forkIO $ hPutStrLn input colorfulText >> hFlush input
-  IORef.writeIORef procRef $ Just (procHandler, input, threadId)

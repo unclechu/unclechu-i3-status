@@ -39,6 +39,7 @@ import "X11" Graphics.X11.Xlib (openDisplay, closeDisplay)
 
 -- local imports
 
+import UnclechuI3Status.Dzen (dzen)
 import UnclechuI3Status.EventSubscriber.Battery (subscribeToBatteryChargeUpdates)
 import UnclechuI3Status.EventSubscriber.DateTime (subscribeToDateTimeUpdates)
 import UnclechuI3Status.EventSubscriber.IPC (IPCEvent (..), subscribeToIPCEvents)
