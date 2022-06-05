@@ -187,7 +187,8 @@ data Unit
   , separator ∷ Maybe Bool
   , separatorBlockWidth ∷ Maybe Word
   , markup ∷ Maybe String
-  } deriving (Show, Eq, Generic)
+  }
+  deriving (Show, Eq, Generic)
 
 instance Default Unit where
   def

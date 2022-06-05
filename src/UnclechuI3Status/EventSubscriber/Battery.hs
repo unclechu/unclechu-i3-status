@@ -29,12 +29,10 @@ import qualified "dbus" DBus
 import qualified "dbus" DBus.Internal.Types as DBusInternal
 import qualified "dbus" DBus.Client
 
--- local imports
+-- Local imports
 
 import UnclechuI3Status.Utils
 
-
-type UPowerPropName = String
 
 subscribeToBatteryChargeUpdates
   ∷ ((Maybe Double, Maybe UPowerBatteryState) → IO ())
@@ -77,15 +75,15 @@ subscribeToBatteryChargeUpdates updateCallback = do
              in batteryObjPath
 
   case batteryObjPath of
-       Nothing → Nothing <$ DBus.Client.disconnect client
-       Just !x → do
-         unsubscriber ←
-           catchUpdate client x
-             <&> DBus.Client.removeMatch client
-             <&> (>> DBus.Client.disconnect client)
-         chargeLeft ← getPropCall client x ∘ show $ Percentage
-         chargeState  ← getPropCall client x ∘ show $ State
-         pure $ Just ((chargeLeft, chargeState), unsubscriber)
+    Nothing → Nothing <$ DBus.Client.disconnect client
+    Just !x → do
+      unsubscriber ←
+        catchUpdate client x
+          <&> DBus.Client.removeMatch client
+          <&> (>> DBus.Client.disconnect client)
+      chargeLeft ← getPropCall client x ∘ show $ Percentage
+      chargeState ← getPropCall client x ∘ show $ State
+      pure $ Just ((chargeLeft, chargeState), unsubscriber)
 
   where
     -- Method call to gets a property of a battery device
@@ -159,6 +157,9 @@ subscribeToBatteryChargeUpdates updateCallback = do
 
 data WatchedProp = Percentage | State
   deriving (Eq, Show, Enum, Bounded)
+
+
+type UPowerPropName = String
 
 
 data UPowerBatteryState

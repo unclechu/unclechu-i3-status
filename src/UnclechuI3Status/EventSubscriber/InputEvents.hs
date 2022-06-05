@@ -33,9 +33,11 @@ import UnclechuI3Status.Utils.Aeson (withFieldNamer)
 subscribeToClickEvents ∷ (ClickEvent → IO ()) → IO (Async.Async ())
 subscribeToClickEvents eventCallback = Async.async $ do
   "[" ← getLine -- Opening of lazy list
+
   do -- First one (without comma)
     Just ev ← decodeStrict <$> getLine
     eventCallback ev
+
   forever $ do
     Just ev ← getLine <&> \(uncons → Just (',', x)) → decodeStrict x
     eventCallback ev
@@ -44,13 +46,14 @@ subscribeToClickEvents eventCallback = Async.async $ do
 -- * Types
 
 data ClickEvent
-   = ClickEvent
-   { name ∷ Maybe String
-   , _instance ∷ Maybe String
-   , button ∷ Word8
-   , _x ∷ Int
-   , _y ∷ Int
-   } deriving (Show, Eq, Generic)
+  = ClickEvent
+  { name ∷ Maybe String
+  , _instance ∷ Maybe String
+  , button ∷ Word8
+  , _x ∷ Int
+  , _y ∷ Int
+  }
+  deriving (Show, Eq, Generic)
 
 instance FromJSON ClickEvent where
   parseJSON = genericParseJSON $ withFieldNamer f

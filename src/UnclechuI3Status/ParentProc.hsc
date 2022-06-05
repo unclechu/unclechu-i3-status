@@ -1,8 +1,9 @@
 -- Author: Viacheslav Lotsmanov
 -- License: GPLv3 https://raw.githubusercontent.com/unclechu/unclechu-i3-status/master/LICENSE
 
-{-# LANGUAGE UnicodeSyntax, PackageImports #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
+{-# LANGUAGE PackageImports #-}
+{-# LANGUAGE UnicodeSyntax #-}
 
 module UnclechuI3Status.ParentProc (dieWithParent) where
 
@@ -15,12 +16,13 @@ import qualified "base" Foreign.C.Types as CTypes
 
 
 foreign import ccall "sys/prctl.h prctl"
-  prctl ∷ CTypes.CInt
-        → CTypes.CULong
-        → CTypes.CULong
-        → CTypes.CULong
-        → CTypes.CULong
-        → IO CTypes.CInt
+  prctl
+    ∷ CTypes.CInt
+    → CTypes.CULong
+    → CTypes.CULong
+    → CTypes.CULong
+    → CTypes.CULong
+    → IO CTypes.CInt
 
 
 dieWithParent ∷ IO ()

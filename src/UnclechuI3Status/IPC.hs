@@ -34,15 +34,16 @@ ipcSwitchAlternativeModeSignal
   → Word32
   -- ^ Alternative mode level value (@0@ turns it off)
   → DBus.Signal
-ipcSwitchAlternativeModeSignal withDisplayMarker newAlternativeState
-  = (DBus.signal objPath' ifaceName memberName)
-  { DBus.signalSender =
-      Just ∘ withDisplayMarker $ busName (def ∷ XmonadrcIfaceParams)
-  , DBus.signalDestination =
-      Just ∘ withDisplayMarker $ busName (def ∷ XlibKeysHackIfaceParams)
-  , DBus.signalBody = [DBus.toVariant newAlternativeState]
-  }
-  where
-    objPath' = objPath (def ∷ XlibKeysHackIfaceParams)
-    ifaceName = interfaceName (def ∷ XlibKeysHackIfaceParams)
-    memberName = "switch_alternative_mode"
+ipcSwitchAlternativeModeSignal withDisplayMarker newAlternativeState = signal where
+  objPath' = objPath (def ∷ XlibKeysHackIfaceParams)
+  ifaceName = interfaceName (def ∷ XlibKeysHackIfaceParams)
+  memberName = "switch_alternative_mode"
+
+  signal
+    = (DBus.signal objPath' ifaceName memberName)
+    { DBus.signalSender =
+        Just ∘ withDisplayMarker $ busName (def ∷ XmonadrcIfaceParams)
+    , DBus.signalDestination =
+        Just ∘ withDisplayMarker $ busName (def ∷ XlibKeysHackIfaceParams)
+    , DBus.signalBody = [DBus.toVariant newAlternativeState]
+    }

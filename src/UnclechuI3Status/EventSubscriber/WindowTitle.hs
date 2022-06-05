@@ -45,14 +45,10 @@ import "process" System.Process
   , withCreateProcess
   )
 
--- local imports
+-- Local imports
 
 import UnclechuI3Status.Utils
 import UnclechuI3Status.Utils.Aeson (withFieldNamer)
-
-
-newtype WindowTitle = WindowTitle { unWindowTitle ∷ String }
-  deriving (Show, Eq)
 
 
 subscribeToFocusedWindowTitleUpdates
@@ -138,6 +134,10 @@ getFocusedWindowTitle = \case
 
 -- * Types
 
+newtype WindowTitle = WindowTitle { unWindowTitle ∷ String }
+  deriving (Show, Eq)
+
+
 data EventResolve
   = Ignore
   | FocusedWindowNotFound
@@ -147,12 +147,12 @@ data EventResolve
 
 
 data ChangeEvent
-   = WindowFocusEvent EventContainer
-   | WindowTitleEvent EventContainer
-   | WindowCloseEvent EventContainer
-   | WorkspaceFocusEvent EventWorkspace
-   | OtherEvent Value
-     deriving (Show, Eq, Generic)
+  = WindowFocusEvent EventContainer
+  | WindowTitleEvent EventContainer
+  | WindowCloseEvent EventContainer
+  | WorkspaceFocusEvent EventWorkspace
+  | OtherEvent Value
+  deriving (Show, Eq, Generic)
 
 instance FromJSON ChangeEvent where
   parseJSON json@(Object obj) =
@@ -175,18 +175,19 @@ instance FromJSON ChangeEvent where
 
 
 data EventContainer
-   = EventContainer
-   { id ∷ Int64
-   , _type ∷ String
-   , focused ∷ Bool
-   , urgent ∷ Bool
-   , output ∷ String
-   , layout ∷ String
-   , name ∷ String
-   , window ∷ Int64
-   , windowProperties ∷ EventContainerWindowProperties
-   , sticky ∷ Bool
-   } deriving (Show, Eq, Generic)
+  = EventContainer
+  { id ∷ Int64
+  , _type ∷ String
+  , focused ∷ Bool
+  , urgent ∷ Bool
+  , output ∷ String
+  , layout ∷ String
+  , name ∷ String
+  , window ∷ Int64
+  , windowProperties ∷ EventContainerWindowProperties
+  , sticky ∷ Bool
+  }
+  deriving (Show, Eq, Generic)
 
 instance FromJSON EventContainer where
   parseJSON = genericParseJSON $ withFieldNamer f where
@@ -194,12 +195,13 @@ instance FromJSON EventContainer where
 
 
 data EventContainerWindowProperties
-   = EventContainerWindowProperties
-   { _class ∷ String
-   , _instance ∷ String
-   , title ∷ String
-   , windowRole ∷ Maybe String
-   } deriving (Show, Eq, Generic)
+  = EventContainerWindowProperties
+  { _class ∷ String
+  , _instance ∷ String
+  , title ∷ String
+  , windowRole ∷ Maybe String
+  }
+  deriving (Show, Eq, Generic)
 
 instance FromJSON EventContainerWindowProperties where
   parseJSON = genericParseJSON $ withFieldNamer f where
@@ -207,17 +209,18 @@ instance FromJSON EventContainerWindowProperties where
 
 
 data EventWorkspace
-   = EventWorkspace
-   { id ∷ Int64
-   , _type ∷ String
-   , focused ∷ Bool
-   , urgent ∷ Bool
-   , output ∷ String
-   , layout ∷ String
-   , name ∷ String
-   , nodes ∷ [WindowTree]
-   , sticky ∷ Bool
-   } deriving (Show, Eq, Generic)
+  = EventWorkspace
+  { id ∷ Int64
+  , _type ∷ String
+  , focused ∷ Bool
+  , urgent ∷ Bool
+  , output ∷ String
+  , layout ∷ String
+  , name ∷ String
+  , nodes ∷ [WindowTree]
+  , sticky ∷ Bool
+  }
+  deriving (Show, Eq, Generic)
 
 instance FromJSON EventWorkspace where
   parseJSON = genericParseJSON $ withFieldNamer f where
@@ -226,15 +229,16 @@ instance FromJSON EventWorkspace where
 
 -- | i3 windows tree
 data WindowTree
-   = WindowTree
-   { id ∷ Int64
-   , focused ∷ Bool
-   , urgent ∷ Bool
-   , layout ∷ String
-   , output ∷ Maybe String
-   , windowProperties ∷ Maybe EventContainerWindowProperties
-   , nodes ∷ [WindowTree]
-   } deriving (Show, Eq, Generic)
+  = WindowTree
+  { id ∷ Int64
+  , focused ∷ Bool
+  , urgent ∷ Bool
+  , layout ∷ String
+  , output ∷ Maybe String
+  , windowProperties ∷ Maybe EventContainerWindowProperties
+  , nodes ∷ [WindowTree]
+  }
+  deriving (Show, Eq, Generic)
 
 instance FromJSON WindowTree where
   parseJSON = genericParseJSON $ withFieldNamer Prelude.id

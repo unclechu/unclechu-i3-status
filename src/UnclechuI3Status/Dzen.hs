@@ -62,10 +62,11 @@ dzen procRef text fgColor = do
     (fontFamily, fontStyle) = ("Hack", "bold")
 
     fontSize ∷ Word
-    fontSize | length text ≤ 2 = 70
-             | length text ≡ 3 = 42
-             | length text ≡ 4 = 32
-             | otherwise       = 9
+    fontSize
+      | length text ≤ 2 = 70
+      | length text ≡ 3 = 42
+      | length text ≡ 4 = 32
+      | otherwise = 9
 
     fontStr (size ∷ Word)
       = "-*-"
@@ -75,15 +76,16 @@ dzen procRef text fgColor = do
 
     colorfulText = "^fn(" ⋄ fontStr fontSize ⋄ ")^fg(" ⋄ fgColor ⋄ ")" ⋄ text
 
-    args = [ "-ta", "c"
-           , "-title-name", wmTitle
-           -- , "-p", show timeoutSeconds
-           , "-w", show w, "-h", show h
-           , "-x", show (if x < 0 then x − fromIntegral w else x)
-           , "-y", show (if y < 0 then y − fromIntegral h else y)
-           , "-bg", bgColor, "-fg", fgDefaultColor
-           , "-fn", fontStr 9
-           ]
+    args =
+      [ "-ta", "c"
+      , "-title-name", wmTitle
+      -- , "-p", show timeoutSeconds
+      , "-w", show w, "-h", show h
+      , "-x", show (if x < 0 then x − fromIntegral w else x)
+      , "-y", show (if y < 0 then y − fromIntegral h else y)
+      , "-bg", bgColor, "-fg", fgDefaultColor
+      , "-fn", fontStr 9
+      ]
 
     runKiller input procHandler = forkIO $ do
       threadDelay $ fromIntegral timeoutSeconds × 1000 × 1000

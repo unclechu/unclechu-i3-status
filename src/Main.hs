@@ -36,7 +36,7 @@ import "unix" System.Posix.Signals
 
 import "X11" Graphics.X11.Xlib (openDisplay, closeDisplay)
 
--- local imports
+-- Local imports
 
 import UnclechuI3Status.Dzen (dzen)
 import UnclechuI3Status.EventSubscriber.Battery (subscribeToBatteryChargeUpdates)
@@ -160,12 +160,13 @@ main = do
 -- * Types
 
 data ProtocolInitialization
-   = ProtocolInitialization
-   { version ∷ Word
-   , stopSignal ∷ Maybe Int
-   , contSignal ∷ Maybe Int
-   , clickEvents ∷ Bool
-   } deriving (Show, Eq, Generic)
+  = ProtocolInitialization
+  { version ∷ Word
+  , stopSignal ∷ Maybe Int
+  , contSignal ∷ Maybe Int
+  , clickEvents ∷ Bool
+  }
+  deriving (Show, Eq, Generic)
 
 instance Default ProtocolInitialization where
   def

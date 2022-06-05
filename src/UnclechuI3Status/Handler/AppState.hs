@@ -31,9 +31,6 @@ import UnclechuI3Status.Indicators
   )
 
 
-type Message = String
-type Color = String
-
 -- | Reactive loop that gets state modifier from an @MVar@
 --   to update the state and re-render it (if it's @Just@)
 --   or terminate the application (it it's @Nothing@).
@@ -100,3 +97,9 @@ appStateHandler reportCallback getNextStateUpdate writeState initialState = go w
                (colorOfNumLock ∘ numLock $ newState)
 
          | otherwise → pure ()
+
+
+-- * Types
+
+type Message = String
+type Color = String

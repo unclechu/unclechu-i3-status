@@ -25,6 +25,8 @@ import "base" Control.Concurrent (threadDelay)
 
 import qualified "async" Control.Concurrent.Async as Async
 
+-- Local imports
+
 import UnclechuI3Status.Utils
 
 
