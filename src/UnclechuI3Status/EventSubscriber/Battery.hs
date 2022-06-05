@@ -5,7 +5,7 @@
 {-# LANGUAGE OverloadedStrings, QuasiQuotes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module UnclechuI3Status.Battery
+module UnclechuI3Status.EventSubscriber.Battery
      ( setUpBatteryIndicator
      ) where
 

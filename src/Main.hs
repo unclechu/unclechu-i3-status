@@ -83,7 +83,7 @@ import "dbus" DBus.Client ( connectSession
 
 -- local imports
 
-import UnclechuI3Status.Battery (setUpBatteryIndicator)
+import UnclechuI3Status.EventSubscriber.Battery (setUpBatteryIndicator)
 import UnclechuI3Status.Handler.AppState (State (..), appStateHandler)
 import UnclechuI3Status.ParentProc (dieWithParent)
 import UnclechuI3Status.Utils
