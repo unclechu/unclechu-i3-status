@@ -107,23 +107,19 @@ main = do
     subscribeToFocusedWindowTitleUpdates $
       \x → putStateModification $ \s → s { windowTitle = unWindowTitle <$> x }
 
-  let
-    defState ∷ State
-    defState
-      = def
+  (saveState, readState) ←
+    (writeIORef &&& readIORef) <$> newIORef def
       { battery = fst <$> batteryChargeUpdatesSubscription
       , windowTitle = unWindowTitle <$> initialFocusedWindowTitle
       , lastTime = Just initialDateAndTime
       }
-
-  stateRef ← newIORef defState
 
   clickEventsThreadHandle ←
     subscribeToClickEvents . handleClickEvent $ HandleClickEventInterface
       { alternativeModeClickHandler =
           let
             newState =
-              readIORef stateRef <&> alternative <&> \case
+              readState <&> alternative <&> \case
                 Nothing     → 1
                 Just (1, _) → 2
                 _           → 0
@@ -134,7 +130,7 @@ main = do
             ipcEmitSignal ∘ signal =<< newState
 
       , getCurrentKbdLayout
-          = readIORef stateRef <&> kbdLayout
+          = readState <&> kbdLayout
           • fmap (either (const Nothing) Just) • join
       }
 
@@ -147,23 +143,22 @@ main = do
   echo $ encode (def ∷ ProtocolInitialization) { clickEvents = True }
 
   appStateThreadHandle ←
-    appStateHandler
-      dzenNotification
-        getNextStateModification
-        (writeIORef stateRef)
-        defState
+    appStateHandler dzenNotification getNextStateModification saveState =<< readState
 
   -- Handle POSIX signals to terminate application
   let
+    threadHandles =
+      [ focusedWindowTitleThreadHandle
+      , ipcEventsThreadHandle
+      , dateAndTimeThreadHandle
+      , clickEventsThreadHandle
+      , appStateThreadHandle
+      ]
+
     terminateApplication
       = foldl' finally (pure ())
-      [ maybe (pure ()) snd batteryChargeUpdatesSubscription
-      , Async.uninterruptibleCancel focusedWindowTitleThreadHandle
-      , Async.uninterruptibleCancel ipcEventsThreadHandle
-      , Async.uninterruptibleCancel dateAndTimeThreadHandle
-      , Async.uninterruptibleCancel clickEventsThreadHandle
-      , Async.uninterruptibleCancel appStateThreadHandle
-      ]
+      $ [maybe (pure ()) snd batteryChargeUpdatesSubscription]
+      ⋄ fmap Async.uninterruptibleCancel threadHandles
 
   mapM_
     (\sig → installHandler sig (Catch terminateApplication) Nothing)
