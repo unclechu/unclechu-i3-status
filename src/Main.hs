@@ -18,7 +18,6 @@ import "base" GHC.Generics (Generic)
 import "base-unicode-symbols" Prelude.Unicode
 
 import "aeson" Data.Aeson (ToJSON (..), genericToJSON, encode)
-import "base" Data.Bifunctor (first)
 import "base" Data.IORef (newIORef, readIORef, writeIORef)
 import "data-default" Data.Default (Default (def))
 
@@ -86,7 +85,7 @@ main = do
     subscribeToIPCEvents (unWithDisplayMarker withDisplayMarker) $ \case
       NumLock x → put ∘ Just $ \s → s { numLock = x }
       CapsLock x → put ∘ Just $ \s → s { capsLock = x }
-      KbdLayout x → put ∘ Just $ \s → s { kbdLayout = Just ∘ first Just $ x }
+      KbdLayout x → put ∘ Just $ \s → s { kbdLayout = Just x }
       Alternative x → put ∘ Just $ \s → s { alternative = x }
 
   (initialDateAndTime, _dateAndTimeThreadHandle) ←

@@ -112,8 +112,7 @@ kbdLayoutView s = go where
 
   go = case kbdLayout s of
     Nothing → pure $ f "UNDEFINED" "%UNDEFINED%" "#eeeeee"
-    Just (Left Nothing) → pure $ f "ERROR" "%ERROR%" "#ff0000"
-    Just (Left (Just n)) →
+    Just (Left n) →
       pure $ f "UNKNOWN" ("%UNKNOWN:" ⋄ show n ⋄ "%") "#eeeeee"
     Just (Right layout) →
       [minBound .. maxBound ∷ Layout] <&> \x →
