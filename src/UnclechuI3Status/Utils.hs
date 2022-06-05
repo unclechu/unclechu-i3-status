@@ -1,7 +1,10 @@
 -- Author: Viacheslav Lotsmanov
 -- License: GPLv3 https://raw.githubusercontent.com/unclechu/unclechu-i3-status/master/LICENSE
 
-{-# LANGUAGE UnicodeSyntax, PackageImports, LambdaCase, ScopedTypeVariables #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE PackageImports #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE UnicodeSyntax #-}
 
 module UnclechuI3Status.Utils
      ( (•), (⋄), (<&!>)
@@ -12,10 +15,6 @@ module UnclechuI3Status.Utils
      , renderDate
      , getDisplayName
      , spawnProc
-
-     , Layout (..)
-     , numToLayout
-     , colorOfLayout
 
      , showNumLock
      , colorOfNumLock
@@ -34,7 +33,6 @@ import "base" Data.Word (Word8)
 import "base" Data.Bool (bool)
 import "base" Data.Function ((&))
 import "base" Data.Functor ((<&>), ($>))
-import "base" Data.List (find)
 import "bytestring" Data.ByteString.Lazy.Char8 (ByteString, putStrLn)
 
 import "time" Data.Time.Format (FormatTime, formatTime, defaultTimeLocale)
@@ -85,15 +83,6 @@ spawnProc cmd args = do
     , std_err     = UseHandle devNull
     , new_session = True
     }
-
-
-data Layout = US | RU | FI deriving (Eq, Show, Enum, Bounded)
-
-numToLayout ∷ ∀ α. (Num α, Enum α, Bounded α, Eq α) ⇒ α → Maybe Layout
-numToLayout n = zip [0..] [minBound..maxBound] & find (fst • (≡ n)) & fmap snd
-
-colorOfLayout ∷ Layout → String
-colorOfLayout = \case US → "#ff0000"; RU → "#00ff00"; FI → "#0000ff"
 
 
 showNumLock ∷ Bool → String

@@ -27,6 +27,7 @@ import "time" Data.Time.LocalTime (utcToZonedTime)
 
 import UnclechuI3Status.EventSubscriber.Battery (UPowerBatteryState (..))
 import UnclechuI3Status.Handler.AppState.Types (State (..))
+import UnclechuI3Status.Layout (Layout, colorOfLayout)
 import UnclechuI3Status.Utils
 import UnclechuI3Status.Utils.Aeson (withFieldNamer)
 

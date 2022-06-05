@@ -17,7 +17,7 @@ import "time" Data.Time.LocalTime (TimeZone)
 -- Local imports
 
 import UnclechuI3Status.EventSubscriber.Battery (UPowerBatteryState)
-import UnclechuI3Status.Utils (Layout)
+import UnclechuI3Status.Layout (Layout)
 
 
 data State

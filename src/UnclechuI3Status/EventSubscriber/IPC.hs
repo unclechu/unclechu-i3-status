@@ -34,6 +34,7 @@ import qualified "dbus" DBus.Client
 
 -- Local imports
 
+import UnclechuI3Status.Layout (Layout (..), numToLayout)
 import UnclechuI3Status.Utils
 
 

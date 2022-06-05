@@ -26,6 +26,7 @@ import "X11" Graphics.X11.Types
 -- Local imports
 
 import UnclechuI3Status.EventSubscriber.InputEvents (ClickEvent (..))
+import UnclechuI3Status.Layout (Layout)
 import UnclechuI3Status.Utils
 import UnclechuI3Status.X (fakeKeyEvent)
 

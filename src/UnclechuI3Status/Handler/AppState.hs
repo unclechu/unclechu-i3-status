@@ -17,6 +17,7 @@ import "base" Control.Monad (void)
 -- Local imports
 
 import UnclechuI3Status.Handler.AppState.Types
+import UnclechuI3Status.Layout (colorOfLayout)
 import UnclechuI3Status.Render (render)
 import UnclechuI3Status.Utils
 
