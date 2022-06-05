@@ -260,11 +260,9 @@ main = do
 
   dieWithParent -- Make this app die if parent die
 
-  echo $ encode (def ∷ ProtocolInitialization) { clickEvents = True }
-  echo "[" -- Opening of a list items stream
-
   dzen'
     ← newIORef Nothing <&>
     \ ref text color → void ∘ Async.async $ dzen ref text color
 
+  echo $ encode (def ∷ ProtocolInitialization) { clickEvents = True }
   appStateHandler dzen' (takeMVar stateChangeMVar) (writeIORef stateRef) defState

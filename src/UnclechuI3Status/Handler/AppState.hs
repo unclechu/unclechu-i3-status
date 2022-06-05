@@ -44,9 +44,9 @@ appStateHandler
   -- ^ Write new application state (after receiving an update for it)
   → State
   → IO ()
-appStateHandler reportCallback getNextState writeState initialState = go where
-  go = void $ echo (render initialState) >> loop initialState
-  loop s = getNextState >>= handle s >>= maybe (pure Nothing) loop
+appStateHandler reportCallback getNextStateUpdate writeState initialState = go where
+  go = void $ echo "[" >> echo (render initialState) >> loop initialState
+  loop s = getNextStateUpdate >>= handle s >>= maybe (pure Nothing) loop
   darn = reportCallback "ERR" "#ff0000"
 
   -- | Handle one state modification
