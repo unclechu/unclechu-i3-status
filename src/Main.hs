@@ -15,16 +15,13 @@ import                Prelude.Unicode
 import "data-default" Data.Default (def)
 import "base"         Data.Word (Word8, Word32)
 import "base"         Data.Maybe (fromMaybe)
-import "base"         Data.Function (fix)
-import "aeson"        Data.Aeson (encode, decodeStrict)
-import "bytestring"   Data.ByteString.Char8 (getLine, uncons)
+import "aeson"        Data.Aeson (encode)
 import "base"         Data.IORef (newIORef, readIORef, writeIORef)
 
 import "qm-interpolated-string" Text.InterpolatedString.QM (qms)
 
-import "base" Control.Monad (when, forever, guard, void, join)
+import "base" Control.Monad (when, guard, void, join)
 import "base" Control.Applicative ((<|>))
-import "base" Control.Concurrent (forkIO)
 import "base" Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
 import qualified "async" Control.Concurrent.Async as Async
 
@@ -35,12 +32,6 @@ import "unix" System.Posix.Signals ( installHandler
                                    , sigTERM
                                    , sigPIPE
                                    )
-
-import "X11"  Graphics.X11.Types ( xK_Num_Lock
-                                 , xK_Caps_Lock
-                                 , xK_Shift_L
-                                 , xK_Shift_R
-                                 )
 
 import "X11"  Graphics.X11.Xlib (openDisplay, closeDisplay)
 
@@ -71,60 +62,27 @@ import "dbus" DBus.Client ( connectSession
 
 import UnclechuI3Status.EventSubscriber.Battery (subscribeToBatteryChargeUpdates)
 import UnclechuI3Status.EventSubscriber.DateTime (subscribeToDateTimeUpdates)
+import UnclechuI3Status.EventSubscriber.InputEvents (subscribeToClickEvents)
 import UnclechuI3Status.Handler.AppState (State (..), appStateHandler)
 import UnclechuI3Status.ParentProc (dieWithParent)
 import UnclechuI3Status.Utils
-import UnclechuI3Status.X (initThreads, fakeKeyEvent)
+import UnclechuI3Status.X (initThreads)
 
 import UnclechuI3Status.EventSubscriber.WindowTitle
   ( WindowTitle (..)
   , subscribeToFocusedWindowTitleUpdates
   )
 
+import UnclechuI3Status.Handler.InputEvents
+  ( HandleClickEventInterface (..)
+  , handleClickEvent
+  )
+
 import UnclechuI3Status.Types
   ( ProtocolInitialization (..)
-  , ClickEvent (..)
   , XmonadrcIfaceParams (..)
   , XlibKeysHackIfaceParams (..)
   )
-
-
-data HandleClickEventInterface
-   = HandleClickEventInterface
-   { toggleAlternativeMode ∷ IO ()
-   , getCurrentKbdLayout   ∷ IO (Maybe Layout)
-   }
-
-handleClickEvent ∷ HandleClickEventInterface → ClickEvent → IO ()
-handleClickEvent iface (\x → name (x ∷ ClickEvent) → Just name') = case name' of
-
-  "numlock"     → fakeKeyEvent $ map (xK_Num_Lock,)  [False, True, False]
-  "capslock"    → fakeKeyEvent $ map (xK_Caps_Lock,) [False, True, False]
-  "datentime"   → spawnProc "gnome-calendar" []
-  "alternative" → toggleAlternativeMode iface
-
-  ['k','b','d','l','a','y','o','u','t','-',a,b] →
-    let
-      enum = [minBound .. maxBound ∷ Layout]
-      next = foldr reducer [] [False, True, False]
-        where reducer s acc = (xK_Shift_L, s) : (xK_Shift_R, s) : acc
-      switchTo curLayout toLayout = join $ replicate n next
-        where
-          n = fix (\f x@(l:ls) → if l ≡ curLayout then x else f ls) (cycle enum)
-            & fix (\f i (l:ls) → if l ≡ toLayout then i else f (succ i) ls)
-                  (0 ∷ Int)
-      resolve = do
-        layout ← getCurrentKbdLayout iface
-        fakeKeyEvent ∘ maybe next (uncurry switchTo) $ (,)
-          <$> layout
-          <*> foldl (\acc l → if show l ≡ [a,b] then Just l else acc)
-                Nothing enum
-    in
-      resolve
-
-  _ → pure ()
-
-handleClickEvent _ _ = pure ()
 
 
 main ∷ IO ()
@@ -275,23 +233,15 @@ main = do
                     , signalBody = [toVariant newAlternativeState]
                     }
 
-    handleEv
-      = handleClickEvent HandleClickEventInterface
+    handleClickEventInterface = HandleClickEventInterface
       { toggleAlternativeMode = toggleAlternativeMode'
       , getCurrentKbdLayout
           = readIORef stateRef <&> kbdLayout
           • fmap (either (const Nothing) Just) • join
       }
 
-  -- Reading click events from i3-bar
-  _ ← forkIO $ do
-    "[" ← getLine -- Opening of lazy list
-    do -- First one (without comma)
-      Just ev ← decodeStrict <$> getLine
-      handleEv ev
-    forever $ do
-      Just ev ← getLine <&> \(uncons → Just (',', x)) → decodeStrict x
-      handleEv ev
+  _clickEventsThreadHandle ←
+    subscribeToClickEvents $ handleClickEvent handleClickEventInterface
 
   -- Handle POSIX signals to terminate application
   let

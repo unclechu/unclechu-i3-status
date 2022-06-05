@@ -1,14 +1,15 @@
 -- Author: Viacheslav Lotsmanov
 -- License: GPLv3 https://raw.githubusercontent.com/unclechu/unclechu-i3-status/master/LICENSE
 
-{-# LANGUAGE UnicodeSyntax, PackageImports, LambdaCase, MultiWayIf #-}
-{-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PackageImports #-}
+{-# LANGUAGE UnicodeSyntax #-}
 
 module UnclechuI3Status.Types
      ( ProtocolInitialization (..)
-     , ClickEvent (..)
      , XmonadrcIfaceParams (..)
      , XlibKeysHackIfaceParams (..)
      , ChangeEvent (..)
@@ -21,7 +22,6 @@ module UnclechuI3Status.Types
 import "base" GHC.Generics (Generic)
 
 import "base"         Data.Int (Int64)
-import "base"         Data.Word (Word8)
 import "data-default" Data.Default (Default (def))
 import "aeson"        Data.Aeson.Types (typeMismatch)
 import "aeson"        Data.Aeson ( Value (Object)
@@ -58,20 +58,6 @@ instance Default ProtocolInitialization where
 
 instance ToJSON ProtocolInitialization where
   toJSON = genericToJSON $ withFieldNamer Prelude.id
-
-
-data ClickEvent
-   = ClickEvent
-   { name      ∷ Maybe String
-   , _instance ∷ Maybe String
-   , button    ∷ Word8
-   , _x        ∷ Int
-   , _y        ∷ Int
-   } deriving (Show, Eq, Generic)
-
-instance FromJSON ClickEvent where
-  parseJSON = genericParseJSON $ withFieldNamer f
-    where f ('_':xs) = xs; f x = x
 
 
 data XmonadrcIfaceParams
