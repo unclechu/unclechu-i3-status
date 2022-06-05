@@ -4,6 +4,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE UnicodeSyntax #-}
 
 -- | Dzen2 notification window spawning functions
@@ -13,11 +14,11 @@ module UnclechuI3Status.Dzen
 
 import qualified "base" Data.IORef as IORef
 
-import "base" Control.Concurrent (ThreadId, forkIO, threadDelay, killThread)
--- TODO use async instead
--- import qualified "async" Control.Concurrent.Async as Async
+import "base" Control.Concurrent (threadDelay)
+import qualified "async" Control.Concurrent.Async as Async
 
 import "base" System.IO (Handle, hPutStrLn, hFlush, hClose)
+import "base" System.Mem.Weak (addFinalizer)
 
 import "process" System.Process
   ( CreateProcess (std_in, std_out, std_err)
@@ -35,24 +36,24 @@ import UnclechuI3Status.Utils
 
 
 dzen
-  ∷ IORef.IORef (Maybe (ProcessHandle, Handle, ThreadId))
+  ∷ IORef.IORef (Maybe (ProcessHandle, Handle, Async.Async ()))
+  -- ^ Process handle, stdin of the process, and timeout timer thread handle
   → String
   → String
   → IO ()
 dzen procRef text fgColor = do
-  (procHandler, input, threadId) ←
+  (procHandler, input, threadHandle) ←
     IORef.readIORef procRef >>= \case
       Nothing → getNewProc
-      Just (procHandler, input, threadId) →
+      Just (procHandler, input, threadHandle) →
         getProcessExitCode procHandler >>= \case
-          Just _ → killThread threadId >> getNewProc
+          Just _ → Async.cancel threadHandle >> getNewProc
           Nothing → do
-            killThread threadId
-            newThreadId ← runKiller input procHandler
-            pure (procHandler, input, newThreadId)
+            Async.cancel threadHandle
+            (procHandler, input,) <$> runKiller input procHandler
 
-  _ ← forkIO $ hPutStrLn input colorfulText >> hFlush input
-  IORef.writeIORef procRef $ Just (procHandler, input, threadId)
+  fireAndForget $ hPutStrLn input colorfulText >> hFlush input
+  IORef.writeIORef procRef $ Just (procHandler, input, threadHandle)
 
   where
     wmTitle = "unclechu-i3-status--keyboard-layout"
@@ -87,7 +88,7 @@ dzen procRef text fgColor = do
       , "-fn", fontStr 9
       ]
 
-    runKiller input procHandler = forkIO $ do
+    runKiller input procHandler = Async.async $ do
       threadDelay $ fromIntegral timeoutSeconds × 1000 × 1000
       hClose input >> terminateProcess procHandler
 
@@ -99,5 +100,5 @@ dzen procRef text fgColor = do
         , std_err = NoStream
         }
 
-      threadId ← runKiller input procHandler
-      pure (procHandler, input, threadId)
+      addFinalizer procHandler $ terminateProcess procHandler
+      (procHandler, input,) <$> runKiller input procHandler

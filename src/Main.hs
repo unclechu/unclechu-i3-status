@@ -25,7 +25,7 @@ import "data-default" Data.Default (Default (def))
 import "base" Control.Arrow ((&&&))
 import "base" Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
 import "base" Control.Exception (finally)
-import "base" Control.Monad (void, join)
+import "base" Control.Monad (join)
 import qualified "async" Control.Concurrent.Async as Async
 
 import "unix" System.Posix.Signals
@@ -142,7 +142,7 @@ main = do
 
   dzenNotification
     ← newIORef Nothing <&>
-    \ ref text color → void ∘ Async.async $ dzen ref text color
+    \ ref text color → fireAndForget $ dzen ref text color
 
   echo $ encode (def ∷ ProtocolInitialization) { clickEvents = True }
 

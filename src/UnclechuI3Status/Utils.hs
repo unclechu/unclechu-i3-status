@@ -2,6 +2,8 @@
 -- License: GPLv3 https://raw.githubusercontent.com/unclechu/unclechu-i3-status/master/LICENSE
 
 {-# LANGUAGE PackageImports #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE UnicodeSyntax #-}
 
 module UnclechuI3Status.Utils
@@ -12,6 +14,7 @@ module UnclechuI3Status.Utils
      , echo
      , getDisplayName
      , spawnProc
+     , fireAndForget
      ) where
 
 import Prelude hiding (putStrLn)
@@ -20,10 +23,21 @@ import "base-unicode-symbols" Prelude.Unicode
 import "base" Data.Function ((&))
 import "base" Data.Functor ((<&>), ($>))
 import "bytestring" Data.ByteString.Lazy.Char8 (ByteString, putStrLn)
+import "qm-interpolated-string" Text.InterpolatedString.QM (qms)
 
+import "base" Control.Concurrent (myThreadId)
+import "base" Control.Exception (SomeException, catch, displayException)
 import "base" Control.Monad ((<$!>), void)
+import qualified "async" Control.Concurrent.Async as Async
 
-import "base" System.IO (IOMode (ReadWriteMode), stdout, hFlush, openFile)
+import "base" System.IO
+  ( IOMode (ReadWriteMode)
+  , stdout
+  , stderr
+  , hPutStrLn
+  , hFlush
+  , openFile
+  )
 
 import "process" System.Process
   ( CreateProcess (std_in, std_out, std_err, new_session)
@@ -76,3 +90,14 @@ spawnProc cmd args = do
     , std_err = UseHandle devNull
     , new_session = True
     }
+
+
+-- | Spawn fire-and-forget thread and report exception if it occurs inside it
+fireAndForget ∷ IO () → IO ()
+fireAndForget m =
+  void ∘ Async.async $ catch m $ \e → do
+    threadId ← myThreadId
+    hPutStrLn stderr [qms|
+      Fire-and-forget thread ({threadId}) failed with exception:
+      {displayException @SomeException e}
+    |]

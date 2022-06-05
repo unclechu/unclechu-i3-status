@@ -11,8 +11,7 @@ module UnclechuI3Status.X
      , fakeKeyEvent
      ) where
 
-import "base" Control.Monad (forM, void, unless)
-import "base" Control.Concurrent (forkIO)
+import "base" Control.Monad (forM, unless)
 
 import "base" Foreign.C.Types (CULong (CULong), CInt (CInt))
 
@@ -45,8 +44,13 @@ initThreads =
   xInitThreads >>= \x → unless (x ≠ 0) (fail "XInitThreads call has failed")
 
 
-fakeKeyEvent ∷ [(KeySym, Bool)] → IO ()
-fakeKeyEvent keySyms = void $ forkIO $ do
+-- | Trigger fake key event in fire-and-forget mode
+fakeKeyEvent
+  ∷ [(KeySym, Bool)]
+  -- ^ A list of key state changes to evaluate sequentially
+  --   ("Bool" means whether key is pressed or released)
+  → IO ()
+fakeKeyEvent keySyms = fireAndForget $ do
   dpy ← openDisplay ""
   keyCodes dpy >>= mapM_ (uncurry $ trig dpy)
   closeDisplay dpy
