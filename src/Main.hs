@@ -18,11 +18,14 @@ import "base" GHC.Generics (Generic)
 import "base-unicode-symbols" Prelude.Unicode
 
 import "aeson" Data.Aeson (ToJSON (..), genericToJSON, encode)
+import "base" Data.Foldable (foldl')
 import "base" Data.IORef (newIORef, readIORef, writeIORef)
 import "data-default" Data.Default (Default (def))
 
-import "base" Control.Monad (void, join)
+import "base" Control.Arrow ((&&&))
 import "base" Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
+import "base" Control.Exception (finally)
+import "base" Control.Monad (void, join)
 import qualified "async" Control.Concurrent.Async as Async
 
 import "unix" System.Posix.Signals
@@ -70,39 +73,39 @@ main = do
     let !x = getDisplayName dpy
     closeDisplay dpy $> WithDisplayMarker ($ x)
 
-  stateChangeMVar ← newEmptyMVar
-
-  let put = putMVar stateChangeMVar
+  (putStateModification, getNextStateModification) ←
+    (putMVar &&& takeMVar) <$> newEmptyMVar
 
   (ipcEmitSignal, ipcEventsThreadHandle) ←
     subscribeToIPCEvents (unWithDisplayMarker withDisplayMarker) $ \case
-      NumLock x → put ∘ Just $ \s → s { numLock = x }
-      CapsLock x → put ∘ Just $ \s → s { capsLock = x }
-      KbdLayout x → put ∘ Just $ \s → s { kbdLayout = Just x }
-      Alternative x → put ∘ Just $ \s → s { alternative = x }
+      NumLock x → putStateModification $ \s → s { numLock = x }
+      CapsLock x → putStateModification $ \s → s { capsLock = x }
+      KbdLayout x → putStateModification $ \s → s { kbdLayout = Just x }
+      Alternative x → putStateModification $ \s → s { alternative = x }
 
-  (initialDateAndTime, _dateAndTimeThreadHandle) ←
+  (initialDateAndTime, dateAndTimeThreadHandle) ←
     subscribeToDateTimeUpdates $ \(utc, timeZone) →
-      put ∘ Just $ \s → s { lastTime = Just (utc, timeZone) }
+      putStateModification $ \s → s { lastTime = Just (utc, timeZone) }
 
   !batteryChargeUpdatesSubscription ←
     subscribeToBatteryChargeUpdates $ \case
       (Nothing, Nothing) → pure ()
 
       (Just chargeLeft, Just chargeState) →
-        put ∘ Just $ \s → s { battery = Just (chargeLeft, chargeState) }
+        putStateModification $ \s → s
+          { battery = Just (chargeLeft, chargeState) }
 
       (Just chargeLeft, Nothing) →
-        put ∘ Just $ \s → s
+        putStateModification $ \s → s
           { battery = battery s >>= Just ∘ (chargeLeft,) ∘ snd }
 
       (Nothing, Just chargeState) →
-        put ∘ Just $ \s → s
+        putStateModification $ \s → s
           { battery = battery s >>= Just ∘ (,chargeState) ∘ fst }
 
   (initialFocusedWindowTitle, focusedWindowTitleThreadHandle) ←
     subscribeToFocusedWindowTitleUpdates $
-      \x → put ∘ Just $ \s → s { windowTitle = unWindowTitle <$> x }
+      \x → putStateModification $ \s → s { windowTitle = unWindowTitle <$> x }
 
   let
     defState ∷ State
@@ -115,7 +118,7 @@ main = do
 
   stateRef ← newIORef defState
 
-  _clickEventsThreadHandle ←
+  clickEventsThreadHandle ←
     subscribeToClickEvents . handleClickEvent $ HandleClickEventInterface
       { alternativeModeClickHandler =
           let
@@ -135,26 +138,38 @@ main = do
           • fmap (either (const Nothing) Just) • join
       }
 
-  -- Handle POSIX signals to terminate application
-  let
-    terminate = do
-      maybe (pure ()) snd batteryChargeUpdatesSubscription
-      Async.uninterruptibleCancel focusedWindowTitleThreadHandle
-      Async.uninterruptibleCancel ipcEventsThreadHandle
-      put Nothing
+  dieWithParent -- Make this app die if the parent process (i3 bar) dies
 
-    catch sig = installHandler sig (Catch terminate) Nothing
-
-    in mapM_ catch [sigHUP, sigINT, sigTERM, sigPIPE]
-
-  dieWithParent -- Make this app die if parent die
-
-  dzen'
+  dzenNotification
     ← newIORef Nothing <&>
     \ ref text color → void ∘ Async.async $ dzen ref text color
 
   echo $ encode (def ∷ ProtocolInitialization) { clickEvents = True }
-  appStateHandler dzen' (takeMVar stateChangeMVar) (writeIORef stateRef) defState
+
+  appStateThreadHandle ←
+    appStateHandler
+      dzenNotification
+        getNextStateModification
+        (writeIORef stateRef)
+        defState
+
+  -- Handle POSIX signals to terminate application
+  let
+    terminateApplication
+      = foldl' finally (pure ())
+      [ maybe (pure ()) snd batteryChargeUpdatesSubscription
+      , Async.uninterruptibleCancel focusedWindowTitleThreadHandle
+      , Async.uninterruptibleCancel ipcEventsThreadHandle
+      , Async.uninterruptibleCancel dateAndTimeThreadHandle
+      , Async.uninterruptibleCancel clickEventsThreadHandle
+      , Async.uninterruptibleCancel appStateThreadHandle
+      ]
+
+  mapM_
+    (\sig → installHandler sig (Catch terminateApplication) Nothing)
+    [sigHUP, sigINT, sigTERM, sigPIPE]
+
+  Async.wait appStateThreadHandle
 
 
 -- * Types

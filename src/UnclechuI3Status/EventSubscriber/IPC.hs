@@ -25,7 +25,7 @@ import "qm-interpolated-string" Text.InterpolatedString.QM (qm)
 
 import "base" Control.Arrow ((&&&))
 import "base" Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
-import "base" Control.Exception (onException)
+import "base" Control.Exception (finally)
 import "base" Control.Monad (when, void)
 import qualified "async" Control.Concurrent.Async as Async
 
@@ -115,7 +115,7 @@ subscribeToIPCEvents withDisplayMarker eventCallback = do
 
         DBus.Client.disconnect client
     in
-      (getNextEmitterTask >>= DBus.Client.emit client) `onException` finalizer
+      (getNextEmitterTask >>= DBus.Client.emit client) `finally` finalizer
 
   pure (emitSignal, threadHandle)
 
