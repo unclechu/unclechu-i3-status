@@ -14,31 +14,17 @@ import                Prelude.Unicode
 
 import "data-default" Data.Default (def)
 import "base"         Data.Word (Word8, Word32)
-import "base"         Data.Fixed (Pico)
 import "base"         Data.Maybe (fromMaybe)
 import "base"         Data.Function (fix)
 import "aeson"        Data.Aeson (encode, decodeStrict)
 import "bytestring"   Data.ByteString.Char8 (getLine, uncons)
 import "base"         Data.IORef (newIORef, readIORef, writeIORef)
-import "time"         Data.Time.Clock (UTCTime)
-
-import "time"         Data.Time.LocalTime
-                        ( TimeZone
-                        , TimeOfDay (todSec)
-                        , LocalTime (localTimeOfDay)
-                        , ZonedTime ( zonedTimeToLocalTime
-                                    , zonedTimeZone
-                                    )
-
-                        , getZonedTime
-                        , zonedTimeToUTC
-                        )
 
 import "qm-interpolated-string" Text.InterpolatedString.QM (qms)
 
 import "base" Control.Monad (when, forever, guard, void, join)
 import "base" Control.Applicative ((<|>))
-import "base" Control.Concurrent (forkIO, threadDelay)
+import "base" Control.Concurrent (forkIO)
 import "base" Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
 import qualified "async" Control.Concurrent.Async as Async
 
@@ -84,6 +70,7 @@ import "dbus" DBus.Client ( connectSession
 -- local imports
 
 import UnclechuI3Status.EventSubscriber.Battery (subscribeToBatteryChargeUpdates)
+import UnclechuI3Status.EventSubscriber.DateTime (subscribeToDateTimeUpdates)
 import UnclechuI3Status.Handler.AppState (State (..), appStateHandler)
 import UnclechuI3Status.ParentProc (dieWithParent)
 import UnclechuI3Status.Utils
@@ -100,18 +87,6 @@ import UnclechuI3Status.Types
   , XmonadrcIfaceParams (..)
   , XlibKeysHackIfaceParams (..)
   )
-
-
-
-fetchDateAndTime ∷ IO (Pico, UTCTime, TimeZone)
-fetchDateAndTime = getZonedTime <&> \zt →
-
-  let utc      = zonedTimeToUTC zt
-      timeZone = zonedTimeZone  zt
-      seconds  = todSec $ localTimeOfDay $ zonedTimeToLocalTime zt
-      secsLeft = 60 - seconds -- left to next minute
-
-   in (secsLeft, utc, timeZone)
 
 
 data HandleClickEventInterface
@@ -247,37 +222,37 @@ main = do
                )
              ]
 
-  -- Fetcing date and time thread
-  _ ← forkIO $ forever $ do
-    (secondsLeftToNextMinute, utc, timeZone) ← fetchDateAndTime
-    put $ Just $ \s → s { lastTime = Just (utc, timeZone) }
-    threadDelay $ ceiling $ secondsLeftToNextMinute × 1000 × 1000
+  (initialDateAndTime, _dateAndTimeThreadHandle) ←
+    subscribeToDateTimeUpdates $ \(utc, timeZone) →
+      put ∘ Just $ \s → s { lastTime = Just (utc, timeZone) }
 
   !batteryChargeUpdatesSubscription ←
     subscribeToBatteryChargeUpdates $ \case
       (Nothing, Nothing) → pure ()
 
       (Just chargeLeft, Just chargeState) →
-        put $ Just $ \s → s { battery = Just (chargeLeft, chargeState) }
+        put ∘ Just $ \s → s { battery = Just (chargeLeft, chargeState) }
 
       (Just chargeLeft, Nothing) →
-        put $ Just $ \s → s
+        put ∘ Just $ \s → s
           { battery = battery s >>= Just ∘ (chargeLeft,) ∘ snd }
 
       (Nothing, Just chargeState) →
-        put $ Just $ \s → s
+        put ∘ Just $ \s → s
           { battery = battery s >>= Just ∘ (,chargeState) ∘ fst }
 
-  (initialFocusedWindowTitle, focusedWindowTitleuhreadHandle) ←
+  (initialFocusedWindowTitle, focusedWindowTitleThreadHandle) ←
     subscribeToFocusedWindowTitleUpdates $
       \x → put ∘ Just $ \s → s { windowTitle = unWindowTitle <$> x }
 
-  let defState ∷ State
-      defState
-        = def
-        { battery     = fst <$> batteryChargeUpdatesSubscription
-        , windowTitle = unWindowTitle <$> initialFocusedWindowTitle
-        }
+  let
+    defState ∷ State
+    defState
+      = def
+      { battery = fst <$> batteryChargeUpdatesSubscription
+      , windowTitle = unWindowTitle <$> initialFocusedWindowTitle
+      , lastTime = Just initialDateAndTime
+      }
 
   stateRef ← newIORef defState
 
@@ -321,7 +296,7 @@ main = do
   let
     terminate = do
       maybe (pure ()) snd batteryChargeUpdatesSubscription
-      Async.uninterruptibleCancel focusedWindowTitleuhreadHandle
+      Async.uninterruptibleCancel focusedWindowTitleThreadHandle
       mapM_ (removeMatch client) sigHandlers
       _ ← releaseName client
         $ busName (def ∷ XmonadrcIfaceParams) dpyView
