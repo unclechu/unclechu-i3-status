@@ -8,7 +8,6 @@
 
 module UnclechuI3Status.Types
      ( ProtocolInitialization (..)
-     , Unit (..)
      , ClickEvent (..)
      , XmonadrcIfaceParams (..)
      , XlibKeysHackIfaceParams (..)
@@ -25,10 +24,7 @@ import "base" GHC.Generics (Generic)
 import "base"         Data.Int (Int64)
 import "base"         Data.Word (Word8)
 import "data-default" Data.Default (Default (def))
-import "aeson"        Data.Aeson.Types ( Options (fieldLabelModifier)
-                                       , camelTo2
-                                       , typeMismatch
-                                       )
+import "aeson"        Data.Aeson.Types (typeMismatch)
 import "aeson"        Data.Aeson ( Value (Object)
                                  , ToJSON (toJSON)
                                  , FromJSON (parseJSON)
@@ -42,6 +38,7 @@ import qualified "dbus" DBus
 import qualified "dbus" DBus.Internal.Types as DBusInternal
 
 import UnclechuI3Status.Utils
+import UnclechuI3Status.Utils.Aeson (withFieldNamer)
 
 
 data ProtocolInitialization
@@ -63,46 +60,6 @@ instance Default ProtocolInitialization where
 
 instance ToJSON ProtocolInitialization where
   toJSON = genericToJSON $ withFieldNamer Prelude.id
-
-
-data Unit
-   = Unit
-   { fullText            ∷ String
-   , shortText           ∷ Maybe String
-   , color               ∷ Maybe String
-   , background          ∷ Maybe String
-   , border              ∷ Maybe String
-   , minWidth            ∷ Maybe Word
-   , align               ∷ Maybe String
-   , name                ∷ Maybe String
-   , _instance           ∷ Maybe String
-   , urgent              ∷ Maybe Bool
-   , separator           ∷ Maybe Bool
-   , separatorBlockWidth ∷ Maybe Word
-   , markup              ∷ Maybe String
-   } deriving (Show, Eq, Generic)
-
-instance Default Unit where
-  def
-    = Unit
-    { fullText            = ""
-    , shortText           = Nothing
-    , color               = Just "#999999"
-    , background          = Nothing
-    , border              = Nothing
-    , minWidth            = Nothing
-    , align               = Nothing
-    , name                = Nothing
-    , _instance           = Nothing
-    , urgent              = Nothing
-    , separator           = Just False
-    , separatorBlockWidth = Nothing
-    , markup              = Just "none"
-    }
-
-instance ToJSON Unit where
-  toJSON = genericToJSON $ withFieldNamer f
-    where f ('_':xs) = xs; f x = x
 
 
 data ClickEvent
@@ -306,7 +263,3 @@ data WindowTree
 
 instance FromJSON WindowTree where
   parseJSON = genericParseJSON $ withFieldNamer Prelude.id
-
-
-withFieldNamer ∷ (String → String) → Options
-withFieldNamer f = defaultOptions { fieldLabelModifier = f ∘ camelTo2 '_' }

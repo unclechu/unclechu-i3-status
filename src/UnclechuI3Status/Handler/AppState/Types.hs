@@ -4,8 +4,6 @@
 -- | Module responsible of handling application state
 module UnclechuI3Status.Handler.AppState.Types
      ( State (..)
-     , Message
-     , Color
      ) where
 
 import "base" Data.Word (Word8)
@@ -55,7 +53,3 @@ instance Default State where
     , battery = Nothing
     , windowTitle = Nothing
     }
-
-
-type Message = String
-type Color = String

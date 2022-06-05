@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE PackageImports #-}
@@ -9,20 +10,22 @@ module UnclechuI3Status.Render
      ( render
      ) where
 
+import "base" GHC.Generics (Generic)
 import "base-unicode-symbols" Prelude.Unicode
 
-import "aeson" Data.Aeson (encode)
+import "aeson" Data.Aeson (ToJSON (..), genericToJSON, encode)
 import "base" Data.Tuple (swap)
 import "base" Data.Word (Word8)
 import "bytestring" Data.ByteString.Lazy.Char8 (ByteString)
-import "data-default" Data.Default (def)
+import "data-default" Data.Default (Default (def))
 import "time" Data.Time.LocalTime (utcToZonedTime)
 
 -- Local imports
 
 import UnclechuI3Status.Handler.AppState.Types (State (..))
-import UnclechuI3Status.Types (Unit (..), UPowerBatteryState (..))
+import UnclechuI3Status.Types (UPowerBatteryState (..))
 import UnclechuI3Status.Utils
+import UnclechuI3Status.Utils.Aeson (withFieldNamer)
 
 
 -- | Render given state to a string (encoded JSON value)
@@ -148,3 +151,45 @@ windowTitleView x = def
 _separate ∷ Unit
 _separate = def { fullText = "/", color = Just "#666666" }
 -- separateAfter x = x { separator = Just True, separatorBlockWidth = Just 20 }
+
+
+-- * Types
+
+data Unit
+   = Unit
+   { fullText ∷ String
+   , shortText ∷ Maybe String
+   , color ∷ Maybe String
+   , background ∷ Maybe String
+   , border ∷ Maybe String
+   , minWidth ∷ Maybe Word
+   , align ∷ Maybe String
+   , name ∷ Maybe String
+   , _instance ∷ Maybe String
+   , urgent ∷ Maybe Bool
+   , separator ∷ Maybe Bool
+   , separatorBlockWidth ∷ Maybe Word
+   , markup ∷ Maybe String
+   } deriving (Show, Eq, Generic)
+
+instance Default Unit where
+  def
+    = Unit
+    { fullText = ""
+    , shortText = Nothing
+    , color = Just "#999999"
+    , background = Nothing
+    , border = Nothing
+    , minWidth = Nothing
+    , align = Nothing
+    , name = Nothing
+    , _instance = Nothing
+    , urgent = Nothing
+    , separator = Just False
+    , separatorBlockWidth = Nothing
+    , markup              = Just "none"
+    }
+
+instance ToJSON Unit where
+  toJSON = genericToJSON $ withFieldNamer f
+    where f ('_' : xs) = xs; f x = x
