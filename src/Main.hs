@@ -7,6 +7,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PackageImports #-}
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
@@ -20,12 +21,15 @@ import "base-unicode-symbols" Prelude.Unicode
 import "aeson" Data.Aeson (ToJSON (..), genericToJSON, encode)
 import "base" Data.Foldable (foldl')
 import "base" Data.IORef (newIORef, readIORef, writeIORef)
+import "base" Data.List (intercalate)
+import "base" Data.Maybe (catMaybes)
 import "data-default" Data.Default (Default (def))
+import "qm-interpolated-string" Text.InterpolatedString.QM (qm)
 
 import "base" Control.Arrow ((&&&))
 import "base" Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
-import "base" Control.Exception (finally)
-import "base" Control.Monad (join)
+import "base" Control.Exception (finally, fromException, displayException)
+import "base" Control.Monad (join, guard)
 import qualified "async" Control.Concurrent.Async as Async
 
 import "unix" System.Posix.Signals
@@ -164,7 +168,26 @@ main = do
     (\sig → installHandler sig (Catch terminateApplication) Nothing)
     [sigHUP, sigINT, sigTERM, sigPIPE]
 
-  Async.wait appStateThreadHandle
+  do -- Hanlding termination of the application
+
+    _ ← Async.waitAnyCatch threadHandles
+
+    -- Send cancellation signal to all other threads.
+    -- And also call unsubscriber functions.
+    terminateApplication
+
+    -- Wait each thread individually and collect information about exceptions
+    terminationExceptions ←
+      fmap catMaybes ∘ Async.forConcurrently threadHandles $ \asyncHandle →
+        Async.waitCatch asyncHandle
+          <&> either Just (const Nothing)
+          <&> (>>= \e → e <$ guard (fromException e ≠ Just Async.AsyncCancelled))
+          <&> fmap (Async.asyncThreadId asyncHandle,)
+
+    if null terminationExceptions
+    then pure () -- Normal successful exit
+    else fail ∘ intercalate "\n\n" $ terminationExceptions <&> \(tid, e) →
+           [qm| Thread ({tid}) has failed with exception: {displayException e} |]
 
 
 -- * Types
