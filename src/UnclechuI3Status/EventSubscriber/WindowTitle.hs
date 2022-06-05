@@ -76,10 +76,7 @@ subscribeToFocusedWindowTitleUpdates updateCallback = do
       Right tree → pure $ let
         f x@WindowTree { focused = True } = Just x
         f WindowTree { nodes } = listToMaybe $ catMaybes $ f <$> nodes
-
-        windowProps = f tree >>= \x → windowProperties (x ∷ WindowTree)
-
-        in WindowTitle ∘ title <$> windowProps
+        in f tree >>= mkWindowTitle
 
   threadHandle ← Async.async $ do
     let
@@ -97,7 +94,7 @@ subscribeToFocusedWindowTitleUpdates updateCallback = do
               Ignore → pure ()
               FocusedWindowNotFound → updateCallback Nothing
               FocusedWindowClosed → updateCallback Nothing
-              FocusedWindowTitle title → updateCallback ∘ Just $ title
+              FocusedWindowTitle title → updateCallback title
 
   pure (initTitle, threadHandle)
 
@@ -107,13 +104,11 @@ getFocusedWindowTitle = \case
   WindowFocusEvent container →
     if not $ focused (container ∷ EventContainer)
     then Ignore
-    else FocusedWindowTitle ∘ WindowTitle ∘ title $
-           windowProperties (container ∷ EventContainer)
+    else FocusedWindowTitle ∘ mkWindowTitle $ container
   WindowTitleEvent container →
     if not $ focused (container ∷ EventContainer)
     then Ignore
-    else FocusedWindowTitle ∘ WindowTitle ∘ title $
-           windowProperties (container ∷ EventContainer)
+    else FocusedWindowTitle ∘ mkWindowTitle $ container
   WindowCloseEvent container →
     if focused (container ∷ EventContainer)
     then FocusedWindowClosed
@@ -125,11 +120,17 @@ getFocusedWindowTitle = \case
 
     firstFocused = listToMaybe ∘ catMaybes ∘ map f
     top = firstFocused $ nodes (current ∷ EventWorkspace)
-    t = top >>= \x → WindowTitle ∘ title <$> windowProperties (x ∷ WindowTree)
 
-    in maybe FocusedWindowNotFound FocusedWindowTitle t
+    in maybe FocusedWindowNotFound (FocusedWindowTitle ∘ mkWindowTitle) top
 
   OtherEvent _ → Ignore
+
+
+-- * Helpers
+
+-- | Make "WindowTitle" out of window properties
+mkWindowTitle ∷ HasWindowProperties a ⇒ a → Maybe WindowTitle
+mkWindowTitle = getWindowProperties • (>>= title) • fmap WindowTitle
 
 
 -- * Types
@@ -142,7 +143,7 @@ data EventResolve
   = Ignore
   | FocusedWindowNotFound
   | FocusedWindowClosed
-  | FocusedWindowTitle WindowTitle
+  | FocusedWindowTitle (Maybe WindowTitle)
   deriving (Show, Eq)
 
 
@@ -184,7 +185,7 @@ data EventContainer
   , layout ∷ String
   , name ∷ String
   , window ∷ Int64
-  , windowProperties ∷ EventContainerWindowProperties
+  , windowProperties ∷ Maybe EventContainerWindowProperties
   , sticky ∷ Bool
   }
   deriving (Show, Eq, Generic)
@@ -193,12 +194,15 @@ instance FromJSON EventContainer where
   parseJSON = genericParseJSON $ withFieldNamer f where
     f ('_' : xs) = xs; f x = x
 
+instance HasWindowProperties EventContainer where
+  getWindowProperties = windowProperties
+
 
 data EventContainerWindowProperties
   = EventContainerWindowProperties
-  { _class ∷ String
-  , _instance ∷ String
-  , title ∷ String
+  { _class ∷ Maybe String
+  , _instance ∷ Maybe String
+  , title ∷ Maybe String
   , windowRole ∷ Maybe String
   }
   deriving (Show, Eq, Generic)
@@ -242,3 +246,10 @@ data WindowTree
 
 instance FromJSON WindowTree where
   parseJSON = genericParseJSON $ withFieldNamer Prelude.id
+
+instance HasWindowProperties WindowTree where
+  getWindowProperties = windowProperties
+
+
+class HasWindowProperties a where
+  getWindowProperties ∷ a → Maybe EventContainerWindowProperties
