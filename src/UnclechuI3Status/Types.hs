@@ -10,8 +10,6 @@
 
 module UnclechuI3Status.Types
      ( ProtocolInitialization (..)
-     , XmonadrcIfaceParams (..)
-     , XlibKeysHackIfaceParams (..)
      , ChangeEvent (..)
      , EventContainer (..)
      , EventContainerWindowProperties (..)
@@ -33,9 +31,6 @@ import "aeson"        Data.Aeson ( Value (Object)
                                  )
 import qualified "aeson" Data.Aeson.KeyMap as KM
 
-import qualified "dbus" DBus
-
-import UnclechuI3Status.Utils
 import UnclechuI3Status.Utils.Aeson (withFieldNamer)
 
 
@@ -58,40 +53,6 @@ instance Default ProtocolInitialization where
 
 instance ToJSON ProtocolInitialization where
   toJSON = genericToJSON $ withFieldNamer Prelude.id
-
-
-data XmonadrcIfaceParams
-   = XmonadrcIfaceParams
-   { objPath       ∷ DBus.ObjectPath
-   , flushObjPath  ∷ String → DBus.ObjectPath
-   , busName       ∷ String → DBus.BusName
-   , interfaceName ∷ DBus.InterfaceName
-   }
-
-instance Default XmonadrcIfaceParams where
-  def
-    = XmonadrcIfaceParams
-    { objPath       = "/"
-    , flushObjPath  = DBus.objectPath_ ∘ ("/com/github/unclechu/xmonadrc/" ⋄)
-    , busName       = DBus.busName_ ∘ ("com.github.unclechu.xmonadrc." ⋄)
-    , interfaceName = "com.github.unclechu.xmonadrc"
-    }
-
-
-data XlibKeysHackIfaceParams
-   = XlibKeysHackIfaceParams
-   { objPath       ∷ DBus.ObjectPath
-   , busName       ∷ String → DBus.BusName
-   , interfaceName ∷ DBus.InterfaceName
-   }
-
-instance Default XlibKeysHackIfaceParams where
-  def
-    = XlibKeysHackIfaceParams
-    { objPath       = "/"
-    , busName       = DBus.busName_ ∘ ("com.github.unclechu.xlib_keys_hack." ⋄)
-    , interfaceName = "com.github.unclechu.xlib_keys_hack"
-    }
 
 
 data ChangeEvent
