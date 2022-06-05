@@ -9,6 +9,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE UnicodeSyntax #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -26,7 +27,7 @@ import "qm-interpolated-string" Text.InterpolatedString.QM (qm)
 import "base" Control.Arrow ((&&&))
 import "base" Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
 import "base" Control.Exception (finally)
-import "base" Control.Monad (when, void)
+import "base" Control.Monad (when, void, forever)
 import qualified "async" Control.Concurrent.Async as Async
 
 import qualified "dbus" DBus
@@ -114,8 +115,10 @@ subscribeToIPCEvents withDisplayMarker eventCallback = do
           $ busName (def ∷ XmonadrcIfaceParams)
 
         DBus.Client.disconnect client
+
+      handleTask = getNextEmitterTask >>= DBus.Client.emit client
     in
-      (getNextEmitterTask >>= DBus.Client.emit client) `finally` finalizer
+      forever @IO @() @() handleTask `finally` finalizer
 
   pure (emitSignal, threadHandle)
 

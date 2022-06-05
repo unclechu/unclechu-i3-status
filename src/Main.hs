@@ -122,7 +122,7 @@ main = do
     subscribeToClickEvents . handleClickEvent $ HandleClickEventInterface
       { alternativeModeClickHandler =
           let
-            newState =
+            !newState =
               readState <&> alternative <&> \case
                 Nothing     → 1
                 Just (1, _) → 2
