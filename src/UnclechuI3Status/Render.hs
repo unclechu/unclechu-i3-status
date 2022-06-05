@@ -21,6 +21,7 @@ import "base" Data.Tuple (swap)
 import "base" Data.Word (Word8)
 import "bytestring" Data.ByteString.Lazy.Char8 (ByteString)
 import "data-default" Data.Default (Default (def))
+import "time" Data.Time.Format (FormatTime, formatTime, defaultTimeLocale)
 import "time" Data.Time.LocalTime (utcToZonedTime)
 
 -- Local imports
@@ -115,6 +116,9 @@ dateAndTimeView s = go where
   go = maybe def { fullText = "…" } (set ∘ render') $ lastTime s
   render' = renderDate ∘ uncurry utcToZonedTime ∘ swap
   set x  = def { fullText = x, name = Just "datentime" }
+
+  renderDate ∷ FormatTime t ⇒ t → String
+  renderDate = formatTime defaultTimeLocale "%A %-d %B %H:%M"
 
 
 batteryView ∷ (Double, UPowerBatteryState) → Unit

@@ -12,7 +12,6 @@ module UnclechuI3Status.Utils
      , module Data.Function
      , module Data.Functor
      , echo
-     , renderDate
      , getDisplayName
      , spawnProc
 
@@ -34,8 +33,6 @@ import "base" Data.Bool (bool)
 import "base" Data.Function ((&))
 import "base" Data.Functor ((<&>), ($>))
 import "bytestring" Data.ByteString.Lazy.Char8 (ByteString, putStrLn)
-
-import "time" Data.Time.Format (FormatTime, formatTime, defaultTimeLocale)
 
 import "base" Control.Monad ((<$!>), void)
 
@@ -63,16 +60,13 @@ infixl 1 <&!>
 echo ∷ ByteString → IO ()
 echo s = putStrLn s >> hFlush stdout
 
-renderDate ∷ FormatTime t ⇒ t → String
-renderDate = formatTime defaultTimeLocale dateFormat
-  where dateFormat ∷ String
-        dateFormat = "%A %-d %B %H:%M"
 
 getDisplayName ∷ Display → String
 getDisplayName dpy = f <$> displayString dpy
   where f ':' = '_'
         f '.' = '_'
         f  x  =  x
+
 
 spawnProc ∷ FilePath → [String] → IO ()
 spawnProc cmd args = do
