@@ -12,7 +12,7 @@
 
 module UnclechuI3Status.EventSubscriber.Battery
      ( UPowerBatteryState (..)
-     , setUpBatteryIndicator
+     , subscribeToBatteryChargeUpdates
      ) where
 
 import "base" Data.Word (Word8)
@@ -36,11 +36,12 @@ import UnclechuI3Status.Utils
 
 type UPowerPropName = String
 
-setUpBatteryIndicator
-  ∷ ((Maybe Double, Maybe UPowerBatteryState) → IO ()) -- Update handler
-  → IO (Maybe ((Double, UPowerBatteryState), IO ())) -- Initial and unsubscriber
-
-setUpBatteryIndicator updateHandler = do
+subscribeToBatteryChargeUpdates
+  ∷ ((Maybe Double, Maybe UPowerBatteryState) → IO ())
+  -- ^ Battery charge info update callback
+  → IO (Maybe ((Double, UPowerBatteryState), IO ()))
+  -- ^ Initial value and unsubscribe function
+subscribeToBatteryChargeUpdates updateCallback = do
   client ← DBus.Client.connectSystem
 
   !batteryObjPath ←
@@ -123,7 +124,7 @@ setUpBatteryIndicator updateHandler = do
 
         , DBus.fromVariant → Just (_ ∷ [DBus.Variant])
         ]
-        = updateHandler
+        = updateCallback
             ( DBus.fromVariant =<< Map.lookup (show Percentage) props
             , DBus.fromVariant =<< Map.lookup (show State)      props
             )

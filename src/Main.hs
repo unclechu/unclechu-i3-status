@@ -83,7 +83,7 @@ import "dbus" DBus.Client ( connectSession
 
 -- local imports
 
-import UnclechuI3Status.EventSubscriber.Battery (setUpBatteryIndicator)
+import UnclechuI3Status.EventSubscriber.Battery (subscribeToBatteryChargeUpdates)
 import UnclechuI3Status.Handler.AppState (State (..), appStateHandler)
 import UnclechuI3Status.ParentProc (dieWithParent)
 import UnclechuI3Status.Utils
@@ -253,28 +253,29 @@ main = do
     put $ Just $ \s → s { lastTime = Just (utc, timeZone) }
     threadDelay $ ceiling $ secondsLeftToNextMinute × 1000 × 1000
 
-  !batteryData ← setUpBatteryIndicator $ \case
-    (Nothing, Nothing) → pure ()
+  !batteryChargeUpdatesSubscription ←
+    subscribeToBatteryChargeUpdates $ \case
+      (Nothing, Nothing) → pure ()
 
-    (Just chargeLeft, Just chargeState) →
-      put $ Just $ \s → s { battery = Just (chargeLeft, chargeState) }
+      (Just chargeLeft, Just chargeState) →
+        put $ Just $ \s → s { battery = Just (chargeLeft, chargeState) }
 
-    (Just chargeLeft, Nothing) →
-      put $ Just $ \s → s
-        { battery = battery s >>= Just ∘ (chargeLeft,) ∘ snd }
+      (Just chargeLeft, Nothing) →
+        put $ Just $ \s → s
+          { battery = battery s >>= Just ∘ (chargeLeft,) ∘ snd }
 
-    (Nothing, Just chargeState) →
-      put $ Just $ \s → s
-        { battery = battery s >>= Just ∘ (,chargeState) ∘ fst }
+      (Nothing, Just chargeState) →
+        put $ Just $ \s → s
+          { battery = battery s >>= Just ∘ (,chargeState) ∘ fst }
 
   (initialFocusedWindowTitle, focusedWindowTitleuhreadHandle) ←
     subscribeToFocusedWindowTitleUpdates $
-      \x → put . Just $ \s → s { windowTitle = unWindowTitle <$> x }
+      \x → put ∘ Just $ \s → s { windowTitle = unWindowTitle <$> x }
 
   let defState ∷ State
       defState
         = def
-        { battery     = fst <$> batteryData
+        { battery     = fst <$> batteryChargeUpdatesSubscription
         , windowTitle = unWindowTitle <$> initialFocusedWindowTitle
         }
 
@@ -317,25 +318,27 @@ main = do
       handleEv ev
 
   -- Handle POSIX signals to terminate application
-  let terminate = do maybe (pure ()) snd batteryData -- unsubscribe
-                     Async.uninterruptibleCancel focusedWindowTitleuhreadHandle
-                     mapM_ (removeMatch client) sigHandlers
-                     _ ← releaseName client
-                       $ busName (def ∷ XmonadrcIfaceParams) dpyView
-                     disconnect client
-                     put Nothing
+  let
+    terminate = do
+      maybe (pure ()) snd batteryChargeUpdatesSubscription
+      Async.uninterruptibleCancel focusedWindowTitleuhreadHandle
+      mapM_ (removeMatch client) sigHandlers
+      _ ← releaseName client
+        $ busName (def ∷ XmonadrcIfaceParams) dpyView
+      disconnect client
+      put Nothing
 
-      catch sig = installHandler sig (Catch terminate) Nothing
+    catch sig = installHandler sig (Catch terminate) Nothing
 
-   in mapM_ catch [sigHUP, sigINT, sigTERM, sigPIPE]
+    in mapM_ catch [sigHUP, sigINT, sigTERM, sigPIPE]
 
-  dieWithParent -- make this app die if parent die
+  dieWithParent -- Make this app die if parent die
 
   echo $ encode (def ∷ ProtocolInitialization) { clickEvents = True }
-  echo "[" -- Opening of lazy list
+  echo "[" -- Opening of a list items stream
 
   dzen'
     ← newIORef Nothing <&>
-    \ ref text color → void . Async.async $ dzen ref text color
+    \ ref text color → void ∘ Async.async $ dzen ref text color
 
   appStateHandler dzen' (takeMVar mVar) (writeIORef stateRef) defState
