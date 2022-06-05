@@ -90,7 +90,7 @@ subscribeToFocusedWindowTitleUpdates updateCallback = do
           , std_err = Inherit
           }
     withCreateProcess procSpec $ \Nothing (Just hOut) _ _ →
-      forever $ hGetLine hOut
+      forever @IO @() @() $ hGetLine hOut
         <&> eitherDecodeStrict'
         >>= either (fail ∘ ("Error while parsing window title event: " ⋄)) pure
         >>= getFocusedWindowTitle • \case

@@ -6,6 +6,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE UnicodeSyntax #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -42,8 +43,8 @@ subscribeToClickEvents eventCallback = Async.async $ do
   -- First one (without comma separator)
   getLine >>= parseItem >>= eventCallback
 
-  forever $
-    getLine <&> uncons <&> \case
+  forever @IO @() @() $ do
+    getLine >>= uncons • \case
       Nothing →
         fail [qm| Failed to parse JSON: Unexpected end of input |]
       Just (',', x) →
