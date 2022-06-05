@@ -9,8 +9,7 @@
 {-# LANGUAGE UnicodeSyntax #-}
 
 module UnclechuI3Status.Types
-     ( ProtocolInitialization (..)
-     , ChangeEvent (..)
+     ( ChangeEvent (..)
      , EventContainer (..)
      , EventContainerWindowProperties (..)
      , EventWorkspace (..)
@@ -20,39 +19,15 @@ module UnclechuI3Status.Types
 import "base" GHC.Generics (Generic)
 
 import "base"         Data.Int (Int64)
-import "data-default" Data.Default (Default (def))
 import "aeson"        Data.Aeson.Types (typeMismatch)
 import "aeson"        Data.Aeson ( Value (Object)
-                                 , ToJSON (toJSON)
                                  , FromJSON (parseJSON)
                                  , defaultOptions
-                                 , genericToJSON
                                  , genericParseJSON
                                  )
 import qualified "aeson" Data.Aeson.KeyMap as KM
 
 import UnclechuI3Status.Utils.Aeson (withFieldNamer)
-
-
-data ProtocolInitialization
-   = ProtocolInitialization
-   { version     ∷ Word
-   , stopSignal  ∷ Maybe Int
-   , contSignal  ∷ Maybe Int
-   , clickEvents ∷ Bool
-   } deriving (Show, Eq, Generic)
-
-instance Default ProtocolInitialization where
-  def
-    = ProtocolInitialization
-    { version     = 1
-    , stopSignal  = Nothing
-    , contSignal  = Nothing
-    , clickEvents = False
-    }
-
-instance ToJSON ProtocolInitialization where
-  toJSON = genericToJSON $ withFieldNamer Prelude.id
 
 
 data ChangeEvent
