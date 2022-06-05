@@ -132,12 +132,13 @@ main = do
   initThreads
 
   -- Connecting to DBus
-  client  ← connectSession
+  client ← connectSession
 
   -- Getting bus name for our service that depends on Display name
-  dpyView ← do dpy    ← openDisplay ""
-               let !x = getDisplayName dpy
-               x <$ closeDisplay dpy
+  dpyView ← do
+    dpy ← openDisplay ""
+    let !x = getDisplayName dpy
+    x <$ closeDisplay dpy
 
   -- Grab the bus name for our service
   requestName client (busName (def ∷ XmonadrcIfaceParams) dpyView) []
@@ -149,9 +150,9 @@ main = do
               error: {reply}
             |]
 
-  mVar ← newEmptyMVar
+  stateChangeMVar ← newEmptyMVar
 
-  let put = putMVar mVar
+  let put = putMVar stateChangeMVar
 
       basicMatchRule = matchAny
         { matchPath        = Just $ objPath (def ∷ XmonadrcIfaceParams)
@@ -316,4 +317,4 @@ main = do
     ← newIORef Nothing <&>
     \ ref text color → void ∘ Async.async $ dzen ref text color
 
-  appStateHandler dzen' (takeMVar mVar) (writeIORef stateRef) defState
+  appStateHandler dzen' (takeMVar stateChangeMVar) (writeIORef stateRef) defState
