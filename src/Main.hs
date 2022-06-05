@@ -61,13 +61,6 @@ import UnclechuI3Status.Handler.InputEvents
   )
 
 
--- | A wrapper to avoid impredicative polymorphism limitation
-newtype WithDisplayMarker
-  = WithDisplayMarker
-  { unWithDisplayMarker ∷ ∀a. (String → a) → a
-  }
-
-
 main ∷ IO ()
 main = do
   initThreads
@@ -185,3 +178,10 @@ instance Default ProtocolInitialization where
 
 instance ToJSON ProtocolInitialization where
   toJSON = genericToJSON $ withFieldNamer id
+
+
+-- | A wrapper to avoid impredicative polymorphism limitation
+newtype WithDisplayMarker
+  = WithDisplayMarker
+  { unWithDisplayMarker ∷ ∀a. (String → a) → a
+  }
