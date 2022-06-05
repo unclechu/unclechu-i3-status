@@ -32,6 +32,16 @@ import UnclechuI3Status.Layout (Layout, colorOfLayout)
 import UnclechuI3Status.Utils
 import UnclechuI3Status.Utils.Aeson (withFieldNamer)
 
+import UnclechuI3Status.Indicators
+  ( showNumLock
+  , colorOfNumLock
+  , showCapsLock
+  , colorOfCapsLock
+  , showAlternativeState
+  , colorOfAlternativeState
+  )
+
+
 
 -- | Render given state to a string (encoded JSON value)
 --

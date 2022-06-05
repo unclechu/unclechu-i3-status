@@ -21,6 +21,15 @@ import UnclechuI3Status.Layout (colorOfLayout)
 import UnclechuI3Status.Render (render)
 import UnclechuI3Status.Utils
 
+import UnclechuI3Status.Indicators
+  ( showNumLock
+  , colorOfNumLock
+  , showCapsLock
+  , colorOfCapsLock
+  , showAlternativeState
+  , colorOfAlternativeState
+  )
+
 
 type Message = String
 type Color = String

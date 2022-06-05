@@ -14,22 +14,11 @@ module UnclechuI3Status.Utils
      , echo
      , getDisplayName
      , spawnProc
-
-     , showNumLock
-     , colorOfNumLock
-
-     , showCapsLock
-     , colorOfCapsLock
-
-     , showAlternativeState
-     , colorOfAlternativeState
      ) where
 
 import Prelude hiding (putStrLn)
 import "base-unicode-symbols" Prelude.Unicode
 
-import "base" Data.Word (Word8)
-import "base" Data.Bool (bool)
 import "base" Data.Function ((&))
 import "base" Data.Functor ((<&>), ($>))
 import "bytestring" Data.ByteString.Lazy.Char8 (ByteString, putStrLn)
@@ -48,6 +37,8 @@ import "process" System.Process
 import "X11" Graphics.X11.Xlib (Display, displayString)
 
 
+-- * Operators
+
 (•) ∷ (α → β) → (β → γ) → α → γ; (•) = flip (∘); {-# INLINE (•) #-}; infixl 9 •
 (⋄) ∷ Semigroup α ⇒ α → α → α;   (⋄) = (<>);     {-# INLINE (⋄) #-}; infixr 6 ⋄
 
@@ -57,55 +48,33 @@ import "X11" Graphics.X11.Xlib (Display, displayString)
 infixl 1 <&!>
 
 
+-- * Helper functions
+
+-- | Print a "ByteString" to stdout and flush it immediatelly
 echo ∷ ByteString → IO ()
 echo s = putStrLn s >> hFlush stdout
 
 
+-- | Get a display name (printed number) with special symbols replaced with @_@
+--   underscore so that you can use it as a part of some service names
+--
+-- Can be useful for defining DBus IPC scoped to a particular X11 session.
 getDisplayName ∷ Display → String
-getDisplayName dpy = f <$> displayString dpy
-  where f ':' = '_'
-        f '.' = '_'
-        f  x  =  x
+getDisplayName dpy = go where
+  go = f <$> displayString dpy
+
+  f ':' = '_'
+  f '.' = '_'
+  f  x  =  x
 
 
+-- | Spawn a process in fire-and-forget mode
 spawnProc ∷ FilePath → [String] → IO ()
 spawnProc cmd args = do
   devNull <- openFile "/dev/null" ReadWriteMode
   void $ createProcess (proc cmd args)
-    { std_in      = UseHandle devNull
-    , std_out     = UseHandle devNull
-    , std_err     = UseHandle devNull
+    { std_in = UseHandle devNull
+    , std_out = UseHandle devNull
+    , std_err = UseHandle devNull
     , new_session = True
     }
-
-
-showNumLock ∷ Bool → String
-showNumLock = const "num"
-
-colorOfNumLock ∷ Bool → String
-colorOfNumLock = bool "#999999" "#eeeeee"
-
-
-showCapsLock ∷ Bool → String
-showCapsLock = bool "caps" "CAPS"
-
-colorOfCapsLock ∷ Bool → String
-colorOfCapsLock = bool "#999999" "#ff9900"
-
-
-showAlternativeState ∷ Maybe (Word8, Bool) → Either Word8 String
-showAlternativeState = go where
-  text = bool "hax" "HAX"
-
-  go = \case
-    Nothing     → Right $ text False
-    Just (1, p) → Right $ text p
-    Just (2, p) → Right $ text p
-    Just (n, _) → Left n
-
-colorOfAlternativeState ∷ Maybe (Word8, Bool) → Either Word8 String
-colorOfAlternativeState = \case
-  Nothing     → Right "#999999"
-  Just (1, _) → Right "#ffff00"
-  Just (2, _) → Right "#00ffff"
-  Just (n, _) → Left n
