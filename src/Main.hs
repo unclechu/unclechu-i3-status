@@ -215,33 +215,32 @@ main = do
 
   stateRef ← newIORef defState
 
-  let
-    toggleAlternativeMode' = do
-      (newAlternativeState :: Word32) ←
-        readIORef stateRef <&> alternative <&> \case
-          Nothing     → 1
-          Just (1, _) → 2
-          _           → 0
-
-      emit client ( signal (objPath (def ∷ XlibKeysHackIfaceParams))
-                           (interfaceName (def ∷ XlibKeysHackIfaceParams))
-                           "switch_alternative_mode"
-                  ) { signalSender =
-                        Just $ busName (def ∷ XmonadrcIfaceParams) dpyView
-                    , signalDestination =
-                        Just $ busName (def ∷ XlibKeysHackIfaceParams) dpyView
-                    , signalBody = [toVariant newAlternativeState]
-                    }
-
-    handleClickEventInterface = HandleClickEventInterface
-      { toggleAlternativeMode = toggleAlternativeMode'
-      , getCurrentKbdLayout
-          = readIORef stateRef <&> kbdLayout
-          • fmap (either (const Nothing) Just) • join
-      }
-
   _clickEventsThreadHandle ←
-    subscribeToClickEvents $ handleClickEvent handleClickEventInterface
+    subscribeToClickEvents . handleClickEvent $
+      let
+        toggleAlternativeMode' = do
+          (newAlternativeState :: Word32) ←
+            readIORef stateRef <&> alternative <&> \case
+              Nothing     → 1
+              Just (1, _) → 2
+              _           → 0
+
+          emit client ( signal (objPath (def ∷ XlibKeysHackIfaceParams))
+                               (interfaceName (def ∷ XlibKeysHackIfaceParams))
+                               "switch_alternative_mode"
+                      ) { signalSender =
+                            Just $ busName (def ∷ XmonadrcIfaceParams) dpyView
+                        , signalDestination =
+                            Just $ busName (def ∷ XlibKeysHackIfaceParams) dpyView
+                        , signalBody = [toVariant newAlternativeState]
+                        }
+      in
+        HandleClickEventInterface
+          { toggleAlternativeMode = toggleAlternativeMode'
+          , getCurrentKbdLayout
+              = readIORef stateRef <&> kbdLayout
+              • fmap (either (const Nothing) Just) • join
+          }
 
   -- Handle POSIX signals to terminate application
   let
