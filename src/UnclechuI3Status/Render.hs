@@ -20,12 +20,8 @@ import "time" Data.Time.LocalTime (utcToZonedTime)
 
 -- Local imports
 
-import UnclechuI3Status.Types
-  ( State (..)
-  , Unit (..)
-  , UPowerBatteryState (..)
-  )
-
+import UnclechuI3Status.Handler.AppState.Types (State (..))
+import UnclechuI3Status.Types (Unit (..), UPowerBatteryState (..))
 import UnclechuI3Status.Utils
 
 

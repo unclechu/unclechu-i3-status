@@ -84,8 +84,8 @@ import "dbus" DBus.Client ( connectSession
 -- local imports
 
 import UnclechuI3Status.Battery (setUpBatteryIndicator)
+import UnclechuI3Status.Handler.AppState (State (..), appStateHandler)
 import UnclechuI3Status.ParentProc (dieWithParent)
-import UnclechuI3Status.Render (render)
 import UnclechuI3Status.Utils
 import UnclechuI3Status.X (initThreads, fakeKeyEvent)
 
@@ -95,8 +95,7 @@ import UnclechuI3Status.EventSubscriber.WindowTitle
   )
 
 import UnclechuI3Status.Types
-  ( State (..)
-  , ProtocolInitialization (..)
+  ( ProtocolInitialization (..)
   , ClickEvent (..)
   , XmonadrcIfaceParams (..)
   , XlibKeysHackIfaceParams (..)
@@ -151,72 +150,6 @@ handleClickEvent iface (\x → name (x ∷ ClickEvent) → Just name') = case na
   _ → pure ()
 
 handleClickEvent _ _ = pure ()
-
-
-type Message = String
-type Color = String
-
--- | Reactive loop that gets state modifier from an @MVar@
---   to update the state and re-render it (if it's @Just@)
---   or terminate the application (it it's @Nothing@).
---
--- This function should be ran in its own thread and it should be the only
--- thread that writes to stdout.
-stateModifyHandler
-  ∷ (Message → Color → IO ())
-  -- ^ Report via Dzen (keyboard layout code or mode like “num” for num lock)
-  → IO (Maybe (State → State))
-  -- ^ Read next application state modification function
-  --   (blocks where there are no updates to handle;
-  --   @Nothing@ we are done with the handling, application ends)
-  → (State → IO ())
-  -- ^ Write new application state (after receiving an update for it)
-  → State
-  → IO ()
-stateModifyHandler reportCallback getNextState writeState initialState = go where
-  go = void $ echo (render initialState) >> loop initialState
-  loop s = getNextState >>= handle s >>= maybe (pure Nothing) loop
-  darn = reportCallback "ERR" "#ff0000"
-
-  -- | Handle one state modification
-  --
-  -- @Nothing@ means the end of the function, for the both @Maybe@ arguments.
-  handle ∷ State → Maybe (State → State) → IO (Maybe State)
-  handle _ Nothing = Nothing <$ echo "]"
-  handle prevState (Just stateModifier) = Just <$> f where
-    f = if newState ≡ prevState then pure prevState else newStateHandler
-    newState = stateModifier prevState
-
-    newStateHandler = newState <$ do
-      writeState newState
-      echo $ "," ⋄ render newState
-
-      if
-        | kbdLayout newState ≢ kbdLayout prevState →
-            case kbdLayout newState of
-              Just (Right layout) →
-                reportCallback (show layout) (colorOfLayout layout)
-              _ → darn
-
-        | alternative newState ≢ alternative prevState
-        ∧ ( fmap snd (alternative newState)  ≡ Just True
-          ∨ fmap snd (alternative prevState) ≡ Just True
-          ) →
-            either (const darn) (uncurry reportCallback) $ (,)
-              <$> (showAlternativeState . alternative) newState
-              <*> (colorOfAlternativeState . alternative) newState
-
-        | capsLock newState ≢ capsLock prevState →
-            reportCallback
-              (showCapsLock . capsLock $ newState)
-              (colorOfCapsLock . capsLock $ newState)
-
-        | numLock newState ≢ numLock prevState →
-            reportCallback
-              (showNumLock . numLock $ newState)
-              (colorOfNumLock . numLock $ newState)
-
-        | otherwise → pure ()
 
 
 main ∷ IO ()
@@ -405,4 +338,4 @@ main = do
     ← newIORef Nothing <&>
     \ ref text color → void . Async.async $ dzen ref text color
 
-  stateModifyHandler dzen' (takeMVar mVar) (writeIORef stateRef) defState
+  appStateHandler dzen' (takeMVar mVar) (writeIORef stateRef) defState
