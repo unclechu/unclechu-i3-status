@@ -20,7 +20,6 @@ import "base-unicode-symbols" Prelude.Unicode
 import "aeson" Data.Aeson (ToJSON (..), genericToJSON, encode)
 import "base" Data.Bifunctor (first)
 import "base" Data.IORef (newIORef, readIORef, writeIORef)
-import "base" Data.Word (Word32)
 import "data-default" Data.Default (Default (def))
 
 import "base" Control.Monad (void, join)
@@ -38,14 +37,14 @@ import "unix" System.Posix.Signals
 
 import "X11" Graphics.X11.Xlib (openDisplay, closeDisplay)
 
-import qualified "dbus" DBus
-
 -- local imports
 
 import UnclechuI3Status.EventSubscriber.Battery (subscribeToBatteryChargeUpdates)
 import UnclechuI3Status.EventSubscriber.DateTime (subscribeToDateTimeUpdates)
+import UnclechuI3Status.EventSubscriber.IPC (IPCEvent (..), subscribeToIPCEvents)
 import UnclechuI3Status.EventSubscriber.InputEvents (subscribeToClickEvents)
 import UnclechuI3Status.Handler.AppState (State (..), appStateHandler)
+import UnclechuI3Status.IPC (ipcSwitchAlternativeModeSignal)
 import UnclechuI3Status.ParentProc (dieWithParent)
 import UnclechuI3Status.Utils
 import UnclechuI3Status.Utils.Aeson (withFieldNamer)
@@ -54,13 +53,6 @@ import UnclechuI3Status.X (initThreads)
 import UnclechuI3Status.EventSubscriber.WindowTitle
   ( WindowTitle (..)
   , subscribeToFocusedWindowTitleUpdates
-  )
-
-import UnclechuI3Status.EventSubscriber.IPC
-  ( IPCEvent (..)
-  , XmonadrcIfaceParams (..)
-  , XlibKeysHackIfaceParams (..)
-  , subscribeToIPCEvents
   )
 
 import UnclechuI3Status.Handler.InputEvents
@@ -131,36 +123,24 @@ main = do
   stateRef ← newIORef defState
 
   _clickEventsThreadHandle ←
-    subscribeToClickEvents . handleClickEvent $
-      let
-        toggleAlternativeMode' = do
-          (newAlternativeState ∷ Word32) ←
-            readIORef stateRef <&> alternative <&> \case
-              Nothing     → 1
-              Just (1, _) → 2
-              _           → 0
+    subscribeToClickEvents . handleClickEvent $ HandleClickEventInterface
+      { alternativeModeClickHandler =
+          let
+            newState =
+              readIORef stateRef <&> alternative <&> \case
+                Nothing     → 1
+                Just (1, _) → 2
+                _           → 0
+            signal =
+              ipcSwitchAlternativeModeSignal
+                (unWithDisplayMarker withDisplayMarker)
+          in
+            ipcEmitSignal ∘ signal =<< newState
 
-          ipcEmitSignal
-            ( DBus.signal
-                (objPath (def ∷ XlibKeysHackIfaceParams))
-                (interfaceName (def ∷ XlibKeysHackIfaceParams))
-                "switch_alternative_mode"
-            )
-            { DBus.signalSender
-                = Just ∘ unWithDisplayMarker withDisplayMarker
-                $ busName (def ∷ XmonadrcIfaceParams)
-            , DBus.signalDestination
-                = Just ∘ unWithDisplayMarker withDisplayMarker
-                $ busName (def ∷ XlibKeysHackIfaceParams)
-            , DBus.signalBody = [DBus.toVariant newAlternativeState]
-            }
-      in
-        HandleClickEventInterface
-          { toggleAlternativeMode = toggleAlternativeMode'
-          , getCurrentKbdLayout
-              = readIORef stateRef <&> kbdLayout
-              • fmap (either (const Nothing) Just) • join
-          }
+      , getCurrentKbdLayout
+          = readIORef stateRef <&> kbdLayout
+          • fmap (either (const Nothing) Just) • join
+      }
 
   -- Handle POSIX signals to terminate application
   let

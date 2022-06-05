@@ -33,11 +33,10 @@ import UnclechuI3Status.X (fakeKeyEvent)
 -- | Handle single click event
 handleClickEvent ∷ HandleClickEventInterface → ClickEvent → IO ()
 handleClickEvent iface (\x → name (x ∷ ClickEvent) → Just name') = case name' of
-
   "numlock"     → fakeKeyEvent $ map (xK_Num_Lock,)  [False, True, False]
   "capslock"    → fakeKeyEvent $ map (xK_Caps_Lock,) [False, True, False]
   "datentime"   → spawnProc "gnome-calendar" []
-  "alternative" → toggleAlternativeMode iface
+  "alternative" → alternativeModeClickHandler iface
 
   ['k','b','d','l','a','y','o','u','t','-',a,b] →
     let
@@ -67,6 +66,6 @@ handleClickEvent _ _ = pure ()
 
 data HandleClickEventInterface
   = HandleClickEventInterface
-  { toggleAlternativeMode ∷ IO ()
+  { alternativeModeClickHandler ∷ IO ()
   , getCurrentKbdLayout ∷ IO (Maybe Layout)
   }
