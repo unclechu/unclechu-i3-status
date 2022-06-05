@@ -1,9 +1,11 @@
 -- Author: Viacheslav Lotsmanov
 -- License: GPLv3 https://raw.githubusercontent.com/unclechu/unclechu-i3-status/master/LICENSE
 
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -15,11 +17,23 @@ module UnclechuI3Status.EventSubscriber.WindowTitle
      , subscribeToFocusedWindowTitleUpdates
      ) where
 
-import "aeson" Data.Aeson (eitherDecodeStrict')
+import "base" GHC.Generics (Generic)
+
+import "aeson" Data.Aeson.Types (typeMismatch)
+import "base" Data.Int (Int64)
+import "base" Data.Maybe (listToMaybe, catMaybes)
 import "bytestring" Data.ByteString (hGetLine, hGetContents)
 import "qm-interpolated-string" Text.InterpolatedString.QM (qn, qm)
-import "base" Data.Maybe (listToMaybe, catMaybes)
+import qualified "aeson" Data.Aeson.KeyMap as KM
 
+import "aeson" Data.Aeson
+  ( Value (Object)
+  , FromJSON (..)
+  , genericParseJSON
+  , eitherDecodeStrict'
+  )
+
+import "base" Control.Applicative ((<|>))
 import "base" Control.Monad (forever)
 import qualified "async" Control.Concurrent.Async as Async
 
@@ -34,7 +48,7 @@ import "process" System.Process
 -- local imports
 
 import UnclechuI3Status.Utils
-import UnclechuI3Status.Types
+import UnclechuI3Status.Utils.Aeson (withFieldNamer)
 
 
 newtype WindowTitle = WindowTitle { unWindowTitle ∷ String }
@@ -94,22 +108,22 @@ subscribeToFocusedWindowTitleUpdates updateCallback = do
 
 getFocusedWindowTitle ∷ ChangeEvent → EventResolve
 getFocusedWindowTitle = \case
-  WindowFocusEvent { container } →
+  WindowFocusEvent container →
     if not $ focused (container ∷ EventContainer)
     then Ignore
     else FocusedWindowTitle ∘ WindowTitle ∘ title $
            windowProperties (container ∷ EventContainer)
-  WindowTitleEvent { container } →
+  WindowTitleEvent container →
     if not $ focused (container ∷ EventContainer)
     then Ignore
     else FocusedWindowTitle ∘ WindowTitle ∘ title $
            windowProperties (container ∷ EventContainer)
-  WindowCloseEvent { container } →
+  WindowCloseEvent container →
     if focused (container ∷ EventContainer)
     then FocusedWindowClosed
     else Ignore
 
-  WorkspaceFocusEvent { current } → let
+  WorkspaceFocusEvent current → let
     f x@WindowTree { focused = True } = Just x
     f WindowTree { nodes } = firstFocused nodes
 
@@ -122,9 +136,105 @@ getFocusedWindowTitle = \case
   OtherEvent _ → Ignore
 
 
+-- * Types
+
 data EventResolve
   = Ignore
   | FocusedWindowNotFound
   | FocusedWindowClosed
   | FocusedWindowTitle WindowTitle
   deriving (Show, Eq)
+
+
+data ChangeEvent
+   = WindowFocusEvent EventContainer
+   | WindowTitleEvent EventContainer
+   | WindowCloseEvent EventContainer
+   | WorkspaceFocusEvent EventWorkspace
+   | OtherEvent Value
+     deriving (Show, Eq, Generic)
+
+instance FromJSON ChangeEvent where
+  parseJSON json@(Object obj) =
+    case KM.lookup "change" obj of
+      Nothing → mismatch
+      Just "focus" →
+        maybe mismatch (fmap WindowFocusEvent ∘ parseJSON) (KM.lookup containerKey obj)
+        <|> maybe mismatch (fmap WorkspaceFocusEvent ∘ parseJSON) (KM.lookup "current" obj)
+        -- ↑ When there’s “current” there can be also optional “old” value
+      Just "title" →
+        maybe mismatch (fmap WindowTitleEvent ∘ parseJSON) (KM.lookup containerKey obj)
+      Just "close" →
+        maybe mismatch (fmap WindowCloseEvent ∘ parseJSON) (KM.lookup containerKey obj)
+      Just _ →
+        pure $ OtherEvent json
+    where
+      containerKey = "container"
+      mismatch = typeMismatch "ChangeEvent" json
+  parseJSON json = typeMismatch "ChangeEvent" json
+
+
+data EventContainer
+   = EventContainer
+   { id ∷ Int64
+   , _type ∷ String
+   , focused ∷ Bool
+   , urgent ∷ Bool
+   , output ∷ String
+   , layout ∷ String
+   , name ∷ String
+   , window ∷ Int64
+   , windowProperties ∷ EventContainerWindowProperties
+   , sticky ∷ Bool
+   } deriving (Show, Eq, Generic)
+
+instance FromJSON EventContainer where
+  parseJSON = genericParseJSON $ withFieldNamer f where
+    f ('_' : xs) = xs; f x = x
+
+
+data EventContainerWindowProperties
+   = EventContainerWindowProperties
+   { _class ∷ String
+   , _instance ∷ String
+   , title ∷ String
+   , windowRole ∷ Maybe String
+   } deriving (Show, Eq, Generic)
+
+instance FromJSON EventContainerWindowProperties where
+  parseJSON = genericParseJSON $ withFieldNamer f where
+    f ('_' : xs) = xs; f x = x
+
+
+data EventWorkspace
+   = EventWorkspace
+   { id ∷ Int64
+   , _type ∷ String
+   , focused ∷ Bool
+   , urgent ∷ Bool
+   , output ∷ String
+   , layout ∷ String
+   , name ∷ String
+   , nodes ∷ [WindowTree]
+   , sticky ∷ Bool
+   } deriving (Show, Eq, Generic)
+
+instance FromJSON EventWorkspace where
+  parseJSON = genericParseJSON $ withFieldNamer f where
+    f ('_' : xs) = xs; f x = x
+
+
+-- | i3 windows tree
+data WindowTree
+   = WindowTree
+   { id ∷ Int64
+   , focused ∷ Bool
+   , urgent ∷ Bool
+   , layout ∷ String
+   , output ∷ Maybe String
+   , windowProperties ∷ Maybe EventContainerWindowProperties
+   , nodes ∷ [WindowTree]
+   } deriving (Show, Eq, Generic)
+
+instance FromJSON WindowTree where
+  parseJSON = genericParseJSON $ withFieldNamer Prelude.id
