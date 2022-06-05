@@ -6,6 +6,8 @@
 
 module UnclechuI3Status.ParentProc (dieWithParent) where
 
+import "base" Control.Monad (void)
+
 import qualified "base" Foreign.C.Types as CTypes
 
 #include <signal.h>
@@ -22,4 +24,4 @@ foreign import ccall "sys/prctl.h prctl"
 
 
 dieWithParent ∷ IO ()
-dieWithParent = () <$ prctl (#const PR_SET_PDEATHSIG) (#const SIGHUP) 0 0 0
+dieWithParent = void $ prctl (#const PR_SET_PDEATHSIG) (#const SIGHUP) 0 0 0
