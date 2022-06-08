@@ -183,7 +183,7 @@ data EventContainer
   , urgent ∷ Bool
   , output ∷ String
   , layout ∷ String
-  , name ∷ String
+  , name ∷ Maybe String
   , window ∷ Int64
   , windowProperties ∷ Maybe EventContainerWindowProperties
   , sticky ∷ Bool
