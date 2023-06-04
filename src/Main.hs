@@ -55,7 +55,7 @@ import UnclechuI3Status.IPC (ipcSwitchAlternativeModeSignal)
 import UnclechuI3Status.ParentProc (dieWithParent)
 import UnclechuI3Status.Utils
 import UnclechuI3Status.Utils.Aeson (withFieldNamer)
-import UnclechuI3Status.X (initThreads)
+import "x11-extras" UnclechuI3Status.X (initThreads)
 
 import UnclechuI3Status.EventSubscriber.WindowTitle
   ( WindowTitle (..)

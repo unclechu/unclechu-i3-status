@@ -61,5 +61,8 @@ hp.shellFor {
     (if withHpack then [ hpack ] else []) ++
     (if withStack then [ stack ] else []) ++
     (if buildExecutable then [ hp.${name} ] else []) ++
-    (if withPackageRepl then pkgRepl else []);
+    (if withPackageRepl then pkgRepl else []) ++
+    [
+      pkgs.xorg.libXtst
+    ];
 }

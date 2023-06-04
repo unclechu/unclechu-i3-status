@@ -28,7 +28,7 @@ import "X11" Graphics.X11.Types
 import UnclechuI3Status.EventSubscriber.InputEvents (ClickEvent (..))
 import UnclechuI3Status.Layout (Layout)
 import UnclechuI3Status.Utils
-import UnclechuI3Status.X (fakeKeyEvent)
+import "x11-extras" UnclechuI3Status.X (fakeKeyEvent)
 
 
 -- | Handle single click event

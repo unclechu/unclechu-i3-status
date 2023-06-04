@@ -23,12 +23,12 @@ dependencies:
   - time
   - unix
   - X11
+  - x11-extras
 
 ghc-options: [-Wall]
 
 library:
   source-dirs: src
-  extra-libraries: [Xtst]
 
 executables:
   unclechu-i3-status:

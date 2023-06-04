@@ -25,8 +25,14 @@ let
     ! isNull (builtins.match "^dist(-newstyle)?$" (baseNameOf fileName))
   );
 
+  noStackStuffFilter = fileName: fileType: ! (
+    fileType == "directory" &&
+    ! isNull (builtins.match "^\.stack-work$" (baseNameOf fileName))
+  );
+
   filter = fileName: fileType:
     noCabalStuffFilter    fileName fileType &&
+    noStackStuffFilter    fileName fileType &&
     withoutDeadWeight     fileName fileType &&
     lib.cleanSourceFilter fileName fileType;
 in

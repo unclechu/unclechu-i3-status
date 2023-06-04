@@ -13,17 +13,22 @@ let sources = import nix/sources.nix; in
 
 # Build options
 , __src ? (callPackage nix/clean-src.nix {}) ./. # A directory
+, __x11-extras-src ? (callPackage nix/clean-src.nix {}) ./x11-extras # A directory
 , justStaticExecutable ? true
 }:
 let
   inherit (__nix-utils) wrapExecutable shellCheckers;
 
-  name = "unclechu-i3-status";
-  pkg = extendedHaskellPackages.callCabal2nix name __src {};
-  pkg-exe = "${justStaticExecutableFn pkg}/bin/${name}";
+  unclechu-i3-status =
+    extendedHaskellPackages.callCabal2nix "unclechu-i3-status" __src {};
+  unclechu-i3-status-exe =
+    "${justStaticExecutableFn unclechu-i3-status}/bin/unclechu-i3-status";
+
+  x11-extras =
+    extendedHaskellPackages.callCabal2nix "x11-extras" __x11-extras-src {};
 
   extendedHaskellPackages = haskellPackages.extend (self: super: {
-    ${name} = pkg;
+    inherit unclechu-i3-status x11-extras;
   });
 
   justStaticExecutableFn =
@@ -33,14 +38,14 @@ let
 
   checkPhase = ''
     ${shellCheckers.fileIsExecutable "${dzen2}/bin/dzen2"}
-    ${shellCheckers.fileIsExecutable pkg-exe}
+    ${shellCheckers.fileIsExecutable unclechu-i3-status-exe}
   '';
 in
-wrapExecutable pkg-exe {
+wrapExecutable unclechu-i3-status-exe {
   deps = [ dzen2 ];
   inherit checkPhase;
 } // {
-  inherit dzen2;
+  inherit dzen2 x11-extras;
   haskellPackages = extendedHaskellPackages;
-  haskellPackage = pkg;
+  haskellPackage = unclechu-i3-status;
 }
