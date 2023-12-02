@@ -19,12 +19,9 @@ import qualified "dbus" DBus
 
 -- Local imports
 
+import qualified UnclechuI3Status.EventSubscriber.IPC.Types.XmonadrcIfaceParams as XlibKeysHackIfaceParams
+import qualified UnclechuI3Status.EventSubscriber.IPC.Types.XmonadrcIfaceParams as XmonadrcIfaceParams
 import UnclechuI3Status.Utils
-
-import UnclechuI3Status.EventSubscriber.IPC
-  ( XmonadrcIfaceParams (..)
-  , XlibKeysHackIfaceParams (..)
-  )
 
 
 -- | Switch alternative mode level to a given value
@@ -35,15 +32,15 @@ ipcSwitchAlternativeModeSignal
   -- ^ Alternative mode level value (@0@ turns it off)
   → DBus.Signal
 ipcSwitchAlternativeModeSignal withDisplayMarker newAlternativeState = signal where
-  objPath' = objPath (def ∷ XlibKeysHackIfaceParams)
-  ifaceName = interfaceName (def ∷ XlibKeysHackIfaceParams)
+  objPath' = XlibKeysHackIfaceParams.objPath def
+  ifaceName = XlibKeysHackIfaceParams.interfaceName def
   memberName = "switch_alternative_mode"
 
   signal
     = (DBus.signal objPath' ifaceName memberName)
     { DBus.signalSender =
-        Just ∘ withDisplayMarker $ busName (def ∷ XmonadrcIfaceParams)
+        Just ∘ withDisplayMarker $ XmonadrcIfaceParams.busName def
     , DBus.signalDestination =
-        Just ∘ withDisplayMarker $ busName (def ∷ XlibKeysHackIfaceParams)
+        Just ∘ withDisplayMarker $ XlibKeysHackIfaceParams.busName def
     , DBus.signalBody = [DBus.toVariant newAlternativeState]
     }

@@ -14,11 +14,8 @@
 {-# LANGUAGE ViewPatterns #-}
 
 module UnclechuI3Status.EventSubscriber.IPC
-     ( IPCEvent (..)
-     , XmonadrcIfaceParams (..)
-     , XlibKeysHackIfaceParams (..)
-     , subscribeToIPCEvents
-     ) where
+  ( subscribeToIPCEvents
+  ) where
 
 import "base" Data.Word (Word8)
 import "data-default" Data.Default (Default (def))
@@ -35,7 +32,9 @@ import qualified "dbus" DBus.Client
 
 -- Local imports
 
-import UnclechuI3Status.Layout (Layout (..), numToLayout)
+import UnclechuI3Status.EventSubscriber.IPC.Types.IPCEvent (IPCEvent (..))
+import qualified UnclechuI3Status.EventSubscriber.IPC.Types.XmonadrcIfaceParams as XmonadrcIfaceParams
+import UnclechuI3Status.Layout (numToLayout)
 import UnclechuI3Status.Utils
 
 
@@ -50,7 +49,7 @@ subscribeToIPCEvents withDisplayMarker eventCallback = do
   client ← DBus.Client.connectSession
 
   do -- Grab the bus name for the application
-    let name = withDisplayMarker $ busName (def ∷ XmonadrcIfaceParams)
+    let name = withDisplayMarker $ XmonadrcIfaceParams.busName def
     reply ← DBus.Client.requestName client name []
     when (reply ≢ DBus.Client.NamePrimaryOwner) $
       fail [qm| Requesting name '{name}' error: {reply} |]
@@ -92,12 +91,12 @@ subscribeToIPCEvents withDisplayMarker eventCallback = do
   -- It’s important to put if *after* the listeners attachment.
   DBus.Client.emit client
     ( DBus.signal
-        (withDisplayMarker $ flushObjPath (def ∷ XmonadrcIfaceParams))
-        (interfaceName (def ∷ XmonadrcIfaceParams))
+        (withDisplayMarker $ XmonadrcIfaceParams.flushObjPath def)
+        (XmonadrcIfaceParams.interfaceName def)
         "request_flush_all"
     )
     { DBus.signalSender =
-        Just ∘ withDisplayMarker $ busName (def ∷ XmonadrcIfaceParams)
+        Just ∘ withDisplayMarker $ XmonadrcIfaceParams.busName def
     , DBus.signalDestination = Nothing
     , DBus.signalBody = []
     }
@@ -112,7 +111,7 @@ subscribeToIPCEvents withDisplayMarker eventCallback = do
         void -- Ignoring the reply, just trying to release the name
           ∘ DBus.Client.releaseName client
           ∘ withDisplayMarker
-          $ busName (def ∷ XmonadrcIfaceParams)
+          $ XmonadrcIfaceParams.busName def
 
         DBus.Client.disconnect client
 
@@ -125,55 +124,9 @@ subscribeToIPCEvents withDisplayMarker eventCallback = do
   where
     basicMatchRule = DBus.Client.matchAny
       { DBus.Client.matchPath =
-          Just $ objPath (def ∷ XmonadrcIfaceParams)
+          Just $ XmonadrcIfaceParams.objPath def
       , DBus.Client.matchInterface =
-          Just $ interfaceName (def ∷ XmonadrcIfaceParams)
+          Just $ XmonadrcIfaceParams.interfaceName def
       , DBus.Client.matchDestination =
-          Just ∘ withDisplayMarker $ busName (def ∷ XmonadrcIfaceParams)
+          Just ∘ withDisplayMarker $ XmonadrcIfaceParams.busName def
       }
-
-
--- * Types
-
-data IPCEvent
-  = NumLock Bool
-  | CapsLock Bool
-  | KbdLayout (Either Word8 Layout)
-  -- ^ @Left@ when failed to parse @Layout@, providing the raw value instead
-  | Alternative (Maybe (Word8, Bool))
-  -- ^ @Nothing@ means alternative mode is turned off
-  deriving (Show, Eq)
-
-
-data XmonadrcIfaceParams
-  = XmonadrcIfaceParams
-  { objPath ∷ DBus.ObjectPath
-  , flushObjPath ∷ String → DBus.ObjectPath
-  , busName ∷ String → DBus.BusName
-  , interfaceName ∷ DBus.InterfaceName
-  }
-
-instance Default XmonadrcIfaceParams where
-  def
-    = XmonadrcIfaceParams
-    { objPath = "/"
-    , flushObjPath  = DBus.objectPath_ ∘ ("/com/github/unclechu/xmonadrc/" ⋄)
-    , busName = DBus.busName_ ∘ ("com.github.unclechu.xmonadrc." ⋄)
-    , interfaceName = "com.github.unclechu.xmonadrc"
-    }
-
-
-data XlibKeysHackIfaceParams
-  = XlibKeysHackIfaceParams
-  { objPath ∷ DBus.ObjectPath
-  , busName ∷ String → DBus.BusName
-  , interfaceName ∷ DBus.InterfaceName
-  }
-
-instance Default XlibKeysHackIfaceParams where
-  def
-    = XlibKeysHackIfaceParams
-    { objPath = "/"
-    , busName = DBus.busName_ ∘ ("com.github.unclechu.xlib_keys_hack." ⋄)
-    , interfaceName = "com.github.unclechu.xlib_keys_hack"
-    }

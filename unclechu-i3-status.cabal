@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d7d349a5089b2ebff557ed2220191b9c7b5a105b7b0b5b8d51db882dd2151bb7
+-- hash: 2ea311c51fb4bca21aa2ff7d31b9fd7a3bf545e0a9f5e0b182a52ee827d1a151
 
 name:           unclechu-i3-status
 version:        0.0.0
@@ -31,7 +31,17 @@ library
       UnclechuI3Status.EventSubscriber.DateTime
       UnclechuI3Status.EventSubscriber.InputEvents
       UnclechuI3Status.EventSubscriber.IPC
+      UnclechuI3Status.EventSubscriber.IPC.Types.IPCEvent
+      UnclechuI3Status.EventSubscriber.IPC.Types.XlibKeysHackIfaceParams
+      UnclechuI3Status.EventSubscriber.IPC.Types.XmonadrcIfaceParams
       UnclechuI3Status.EventSubscriber.WindowTitle
+      UnclechuI3Status.EventSubscriber.WindowTitle.Types.ChangeEvent
+      UnclechuI3Status.EventSubscriber.WindowTitle.Types.EventContainer
+      UnclechuI3Status.EventSubscriber.WindowTitle.Types.EventContainerWindowProperties
+      UnclechuI3Status.EventSubscriber.WindowTitle.Types.EventResolve
+      UnclechuI3Status.EventSubscriber.WindowTitle.Types.EventWorkspace
+      UnclechuI3Status.EventSubscriber.WindowTitle.Types.WindowTitle
+      UnclechuI3Status.EventSubscriber.WindowTitle.Types.WindowTree
       UnclechuI3Status.Handler.AppState
       UnclechuI3Status.Handler.AppState.Types
       UnclechuI3Status.Handler.InputEvents
@@ -73,7 +83,17 @@ executable unclechu-i3-status
       UnclechuI3Status.EventSubscriber.DateTime
       UnclechuI3Status.EventSubscriber.InputEvents
       UnclechuI3Status.EventSubscriber.IPC
+      UnclechuI3Status.EventSubscriber.IPC.Types.IPCEvent
+      UnclechuI3Status.EventSubscriber.IPC.Types.XlibKeysHackIfaceParams
+      UnclechuI3Status.EventSubscriber.IPC.Types.XmonadrcIfaceParams
       UnclechuI3Status.EventSubscriber.WindowTitle
+      UnclechuI3Status.EventSubscriber.WindowTitle.Types.ChangeEvent
+      UnclechuI3Status.EventSubscriber.WindowTitle.Types.EventContainer
+      UnclechuI3Status.EventSubscriber.WindowTitle.Types.EventContainerWindowProperties
+      UnclechuI3Status.EventSubscriber.WindowTitle.Types.EventResolve
+      UnclechuI3Status.EventSubscriber.WindowTitle.Types.EventWorkspace
+      UnclechuI3Status.EventSubscriber.WindowTitle.Types.WindowTitle
+      UnclechuI3Status.EventSubscriber.WindowTitle.Types.WindowTree
       UnclechuI3Status.Handler.AppState
       UnclechuI3Status.Handler.AppState.Types
       UnclechuI3Status.Handler.InputEvents
